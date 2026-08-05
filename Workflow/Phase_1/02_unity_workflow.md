@@ -117,6 +117,8 @@ C가 `voron24.urdf.xacro`를 푸시한 후:
 | **Mesh Decomposer** | **VHACD** | collision STL을 convex로 자동 분해 |
 | Use Gravity | ☐ 끄기 (초기) | 튜닝 전 안전 |
 | Immovable | ☑ (base_link) | 로봇 침하 방지 |
+
+4. **`LocalMockDriver.cs`**(B 담당)가 동일 수식을 C#으로 중복 구현한 상태. **`patterns.py`** 수정 시 B에게 통지할 것.
  
 ### 임포트 직후 확인
  
