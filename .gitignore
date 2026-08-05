@@ -1,0 +1,37 @@
+# ---- ROS2 ----
+ros2_ws/build/
+ros2_ws/install/
+ros2_ws/log/
+__pycache__/
+*.pyc
+
+# ---- Unity ----
+unity/Voron24Twin/[Ll]ibrary/
+unity/Voron24Twin/[Tt]emp/
+unity/Voron24Twin/[Oo]bj/
+unity/Voron24Twin/[Bb]uild/
+unity/Voron24Twin/[Bb]uilds/
+unity/Voron24Twin/[Ll]ogs/
+unity/Voron24Twin/[Uu]serSettings/
+unity/Voron24Twin/[Mm]emoryCaptures/
+unity/Voron24Twin/[Rr]ecordings/
+*.csproj
+*.unityproj
+*.sln
+*.suo
+*.user
+*.booproj
+*.pidb
+*.svd
+*.pdb
+*.mdb
+*.opendb
+*.VC.db
+
+# ---- FreeCAD ----
+*.FCStd1
+*.FCBak
+
+# ---- OS ----
+.DS_Store
+Thumbs.db

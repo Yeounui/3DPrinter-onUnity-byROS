@@ -240,12 +240,6 @@ string    payload
 ├── README.md
 ├── LICENSE
 ├── .gitattributes                  Git LFS 설정
-├── Mock/                            현재 검증/연동 fixture
-│   ├── voron24.urdf.xacro           Mock URDF
-│   ├── voron24_params.xacro         링크/메시 파라미터
-│   ├── mock_publisher_node.py       ROS2 조인트 상태 mock
-│   ├── JointStateSubscriber.cs      Unity 구독 예제
-│   └── voron24-mock.tar.gz          Mock 배포 fixture
 ├── Workflow/Phase_1/
 │   ├── 00_interface_contract.md    이 문서
 │   ├── 01_cad_workflow.md          A
