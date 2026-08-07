@@ -16,9 +16,9 @@
 | 빌드 | colcon |
  
 ```bash
-sudo apt install ros-humble-desktop \
-  ros-humble-robot-state-publisher ros-humble-joint-state-publisher-gui \
-  ros-humble-xacro ros-humble-tf2-tools ros-humble-rviz2 \
+sudo apt install ros-jazzy-desktop \
+  ros-jazzy-robot-state-publisher ros-jazzy-joint-state-publisher-gui \
+  ros-jazzy-xacro ros-jazzy-tf2-tools ros-jazzy-rviz2 \
   python3-colcon-common-extensions
  
 mkdir -p ~/voron24-digital-twin/ros2_ws/src && cd ~/voron24-digital-twin/ros2_ws

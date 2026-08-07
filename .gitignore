@@ -35,3 +35,7 @@ unity/Voron24Twin/[Rr]ecordings/
 # ---- OS ----
 .DS_Store
 Thumbs.db
+
+
+CLAUDE.md
+./project_init.sh
