@@ -240,7 +240,7 @@ string    payload
 ├── README.md
 ├── LICENSE
 ├── .gitattributes                  Git LFS 설정
-├── Workflow/Phase_1/
+├── docs
 │   ├── 00_interface_contract.md    이 문서
 │   ├── 01_cad_workflow.md          A
 │   ├── 02_unity_workflow.md        B
