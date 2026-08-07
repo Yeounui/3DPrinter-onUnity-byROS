@@ -20,3 +20,18 @@ URDF는 한 벌. `use_meshes` 인자로 mock/real 전환.
 수정 후 반드시:
 
     python3 ../../../tools/contract_check.py --xacro urdf/voron24.urdf.xacro
+
+
+
+
+/////
+최상위 링크 대부분 완전 고정 및 추가적 해체 불필요.
+단,
+gantry.FCStd
+z_assembly.FCStd
+
+는 작동부분과 고정부분이 혼재함. 분리 필요.
+
+전체 삭제 대상 링크:
+spool holder
+panels
