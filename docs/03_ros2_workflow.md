@@ -1,7 +1,7 @@
 # 03 — ROS2 담당 워크플로
  
 > **담당: C**
-> **최종 산출물**: URDF 패키지, mock/G-code 노드, Unity 브릿지, Moonraker 연동, 통합 launch, 검증 도구
+> **최종 산출물**: URDF 패키지, mock/G-code 노드, Unity 브릿지, 통합 launch, 검증 도구
 > **선행**: [00_interface_contract.md](00_interface_contract.md) 숙지
 > **최우선 과제**: **W1 Day 1~2에 mock URDF + mock 퍼블리셔 + contract_check 푸시.** 지연 시 팀 전체 정지.
  
@@ -38,8 +38,6 @@ ros2 pkg create voron24_msgs        --build-type ament_cmake \
 ros2 pkg create voron24_gcode       --build-type ament_python \
      --dependencies rclpy sensor_msgs std_msgs voron24_msgs
 ros2 pkg create voron24_bringup     --build-type ament_python --dependencies rclpy
-ros2 pkg create voron24_moonraker   --build-type ament_python \
-     --dependencies rclpy sensor_msgs voron24_msgs
 ```
  
 ### 디렉토리
@@ -65,12 +63,9 @@ ros2_ws/src/
 │   ├── gcode_parser.py
 │   ├── gcode_player_node.py
 │   └── corexy.py
-├── voron24_moonraker/voron24_moonraker/
-│   └── moonraker_bridge_node.py
 └── voron24_bringup/launch/
     ├── mock.launch.py
-    ├── sim.launch.py
-    └── real.launch.py
+    └── sim.launch.py
 ```
  
 > **파일 소유권** (계약 §4): `meshes/`와 `voron24_params.xacro`는 A, 나머지는 C. 파일이 겹치지 않으므로 머지 충돌 없음.
@@ -482,48 +477,12 @@ ros2 launch voron24_description display.launch.py use_meshes:=true
 - [ ] `voron24_params.xacro`의 `MEASURED="true"`
 ---
  
-## Step 10 — Moonraker 연동 (W5, 실기 디지털 트윈)
+## Step 10 — 통합 launch (W4~W5)
  
-Voron은 대부분 Klipper 사용 → **Moonraker WebSocket API**로 실시간 상태 수신.
- 
-```python
-ws.send(json.dumps({
-    "jsonrpc": "2.0", "id": 1,
-    "method": "printer.objects.subscribe",
-    "params": {"objects": {
-        "toolhead": ["position", "homed_axes"],
-        "extruder": ["temperature", "target"],
-        "heater_bed": ["temperature", "target"],
-        "print_stats": ["state", "filename", "info"],
-        "display_status": ["progress"],
-    }}}))
-```
- 
-> **`toolhead.position`은 이미 카티전 좌표(mm).** CoreXY 역변환 불요.
- 
-### 안전 인터록 — 쓰기 방향은 별도 검증 후 활성화
- 
-읽기 전용으로 시작할 것. Unity → 실기 명령(`/printer/cmd` → Moonraker `printer.gcode.script`)은 다음 조건 충족 후에만:
- 
-- 소프트 리밋 검사 — 0~250 범위 밖 거부
-- `/emergency_stop` 토픽 구독 → 즉시 `M112` 전송
-- 온도 미달 시 압출 명령 차단
-- `enable_write` 파라미터 기본값 `false`
-- WebSocket 재연결 로직 (`on_close` 핸들러)
----
- 
-## Step 11 — 통합 launch (W4~W5)
- 
-`sim.launch.py`:
+`sim.launch.py` — 최종 산출물. G-code 파일을 받아 Unity 모델을 구동한다.
  
 ```bash
 ros2 launch voron24_bringup sim.launch.py gcode:=/path/benchy.gcode speed:=30.0
-```
- 
-`real.launch.py`:
- 
-```bash
-ros2 launch voron24_bringup real.launch.py moonraker_host:=192.168.0.50
 ```
  
 ---
@@ -566,7 +525,6 @@ ros2 topic pub --once /printer/cmd voron24_msgs/PrinterCommand "{command: 'pause
 | `mock_publisher_node.py` | 더미 퍼블리셔 | B |
 | `gcode_parser.py` / `gcode_player_node.py` | G-code 재생 | B |
 | `corexy.py` | CoreXY 변환 | — |
-| `moonraker_bridge_node.py` | 실기 브릿지 | — |
 | `bringup/launch/*.launch.py` | 통합 실행 | 전원 |
 | `tools/contract_check.py` | 계약 검증 | **전원 / CI** |
 | `tools/smoke_test.sh` | 통합 게이트 | 전원 |
@@ -598,5 +556,38 @@ ament_package()
 | TF에 링크 누락 | robot_state_publisher가 해당 조인트 position 미수신. `msg.name` 오타 확인 |
 | 커스텀 msg import 실패 | `colcon build --packages-select voron24_msgs` 후 `source` |
 | `speed_scale` 상향 시 끊김 | `advance()` while 루프가 프레임당 처리량 초과. 프레임당 이동 수 상한 설정 |
-| Moonraker 연결 단절 | `websocket-client` 재연결 로직, `on_close` 핸들러 |
 | `contract_check` bed_origin 오류 | parent를 `z_gantry`로 지정한 상태. Voron 2.4는 베드 고정 |
+
+---
+
+## 부록 — Moonraker 연동 (구현하지 않음)
+
+> 마일스톤에 없다. `voron24_moonraker` 패키지와 `real.launch.py`를 만들지 말 것.
+> 아래는 실기를 붙일 경우를 위한 참고 기록.
+
+Voron은 대부분 Klipper 사용 → **Moonraker WebSocket API**로 실시간 상태 수신.
+
+```python
+ws.send(json.dumps({
+    "jsonrpc": "2.0", "id": 1,
+    "method": "printer.objects.subscribe",
+    "params": {"objects": {
+        "toolhead": ["position", "homed_axes"],
+        "extruder": ["temperature", "target"],
+        "heater_bed": ["temperature", "target"],
+        "print_stats": ["state", "filename", "info"],
+        "display_status": ["progress"],
+    }}}))
+```
+
+> **`toolhead.position`은 이미 카티전 좌표(mm).** CoreXY 역변환 불요.
+
+### 안전 인터록 — 쓰기 방향은 별도 검증 후 활성화
+
+읽기 전용으로 시작할 것. Unity → 실기 명령(`/printer/cmd` → Moonraker `printer.gcode.script`)은 다음 조건 충족 후에만:
+
+- 소프트 리밋 검사 — 0~250 범위 밖 거부
+- `/emergency_stop` 토픽 구독 → 즉시 `M112` 전송
+- 온도 미달 시 압출 명령 차단
+- `enable_write` 파라미터 기본값 `false`
+- WebSocket 재연결 로직 (`on_close` 핸들러)

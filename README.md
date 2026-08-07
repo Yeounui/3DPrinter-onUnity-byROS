@@ -8,7 +8,7 @@ STEP ──▶ 링크별 메시 ──▶ URDF ──▶ Unity (ArticulationBody
                  joint_states│         │/printer/cmd
                           ROS2 (ROS-TCP-Endpoint)
                           ▲
-              G-code 플레이어 / Moonraker(실기)
+                 G-code 플레이어
 ```
  
 ## 문서
