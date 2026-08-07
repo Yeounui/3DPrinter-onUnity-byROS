@@ -12,7 +12,7 @@ from launch.conditions import IfCondition
 from launch.substitutions import Command, LaunchConfiguration, PathJoinSubstitution
 from launch_ros.actions import Node
 from launch_ros.substitutions import FindPackageShare
-
+from launch_ros.parameter_descriptions import ParameterValue
 
 def generate_launch_description():
     pkg = FindPackageShare('voron24_description')
@@ -33,7 +33,7 @@ def generate_launch_description():
         Node(package='robot_state_publisher', executable='robot_state_publisher',
              output='screen',
              parameters=[{
-                 'robot_description': robot_description,
+                 'robot_description': ParameterValue(robot_description, value_type=str),
                  'publish_frequency': 50.0,
              }]),
 
