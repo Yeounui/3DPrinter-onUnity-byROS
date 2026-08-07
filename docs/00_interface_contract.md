@@ -230,20 +230,24 @@ string    payload
 ---
  
 ## 7. Git 레포 구조
- 
+
+### 현재 저장소 구조
+
+현재 Mock 경로를 유지한 채 아래 디렉터리를 단계적으로 추가한다. 실제 파일을 옮길 때는 문서의 명령어와 소유권을 함께 갱신한다.
+
 ```
-voron24-digital-twin/
+3DPrinter-onUnity-byROS/
 ├── README.md
+├── LICENSE
 ├── .gitattributes                  Git LFS 설정
-├── .gitignore
-├── docs/
+├── docs
 │   ├── 00_interface_contract.md    이 문서
 │   ├── 01_cad_workflow.md          A
 │   ├── 02_unity_workflow.md        B
 │   └── 03_ros2_workflow.md         C
 ├── tools/
-│   ├── contract_check.py           계약 위반 자동 검출
-│   └── smoke_test.sh               통합 게이트 확인
+│   ├── contract_check.py           통합 검증 진입점
+│   └── smoke_test.sh               통합 게이트
 ├── cad/                            A (LFS)
 │   ├── source/                     원본 STEP
 │   ├── working/                    FreeCAD 작업 파일
@@ -257,10 +261,13 @@ voron24-digital-twin/
 │   ├── voron24_bringup/
 │   └── voron24_moonraker/
 └── unity/Voron24Twin/
-    ├── Assets/
+    ├── README.md 
+    ├── Assets/                 모델 산출물 메모
     ├── Packages/
     └── ProjectSettings/
 ```
+
+`Mock/contract_check.py`는 `tools/`가 추가되기 전 현재 실행 위치. `tools/`로 통합한 뒤에 기존 Mock 검증 경로를 갑자기 삭제하지 말고 README와 CI 명령을 함께 전환.
  
 ### Git LFS
  

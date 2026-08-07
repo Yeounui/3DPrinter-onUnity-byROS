@@ -1,0 +1,54 @@
+using UnityEngine;
+using Unity.Robotics.ROSTCPConnector;
+using RosStatus = RosMessageTypes.Voron24.PrinterStatusMsg;
+
+namespace Voron24.Robot
+{
+    /// <summary>
+    /// /printer/status 구독 (계약 section 5).
+    ///
+    /// 주의: 이 파일은 voron24_msgs 의 C# 클래스가 생성된 뒤에만 컴파일된다.
+    ///   Robotics -> Generate ROS Messages...
+    ///   ROS message path = <repo>/ros2_ws/src/voron24_msgs
+    ///   msg/ 아래 3개를 Build msg
+    /// 생성 전이라면 이 파일을 일시적으로 .cs.txt 로 바꿔두거나
+    /// Assets 밖으로 옮겨 두세요.
+    /// </summary>
+    public class PrinterStatusSubscriber : MonoBehaviour
+    {
+        [SerializeField] string topic = "/printer/status";
+
+        public string State { get; private set; } = "idle";
+        public float NozzleTemp { get; private set; }
+        public float NozzleTarget { get; private set; }
+        public float BedTemp { get; private set; }
+        public float BedTarget { get; private set; }
+        public float ChamberTemp { get; private set; }
+        public float Progress { get; private set; }
+        public uint CurrentLayer { get; private set; }
+        public uint TotalLayers { get; private set; }
+        public string Filename { get; private set; } = "";
+
+        public System.Action<RosStatus> OnStatus;
+
+        void Start()
+        {
+            ROSConnection.GetOrCreateInstance().Subscribe<RosStatus>(topic, Handle);
+        }
+
+        void Handle(RosStatus m)
+        {
+            State = m.state;
+            NozzleTemp = m.nozzle_temp;
+            NozzleTarget = m.nozzle_target;
+            BedTemp = m.bed_temp;
+            BedTarget = m.bed_target;
+            ChamberTemp = m.chamber_temp;
+            Progress = m.progress;
+            CurrentLayer = m.current_layer;
+            TotalLayers = m.total_layers;
+            Filename = m.filename;
+            OnStatus?.Invoke(m);
+        }
+    }
+}

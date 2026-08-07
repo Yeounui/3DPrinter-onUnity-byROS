@@ -11,7 +11,7 @@
  
 | 항목 | 버전 |
 |---|---|
-| **ROS2** | **Humble** (Ubuntu 22.04) 또는 **Jazzy** (24.04) |
+| **ROS2** | **Jazzy** (Ubuntu 24.04) |
 | Python | 3.10+ |
 | 빌드 | colcon |
  
