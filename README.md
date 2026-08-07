@@ -1,6 +1,6 @@
-# Voron 2.4 Digital Twin
+# 3DPrinter-onUnity-byROS
  
-Voron 2.4 (250mm) 3D 프린터의 Unity ↔ ROS2 디지털 트윈.
+3D 프린터(Voron 2.4 (250mm))의 Unity ↔ ROS2 디지털 트윈.
  
 ```
 STEP ──▶ 링크별 메시 ──▶ URDF ──▶ Unity (ArticulationBody)
@@ -23,7 +23,7 @@ STEP ──▶ 링크별 메시 ──▶ URDF ──▶ Unity (ArticulationBody
 ## 빠른 시작
  
 ```bash
-git clone <repo> && cd voron24-digital-twin
+git clone <repo> && cd 3DPrinter-onUnity-byROS
 git lfs install && git lfs pull
  
 cd ros2_ws && colcon build --symlink-install && source install/setup.bash
@@ -57,8 +57,8 @@ cd ros2_ws/src/voron24_gcode && python3 -m voron24_gcode.patterns
 1. **계약 문서(00) 변경은 PR + 3인 승인.** 여기가 흔들리면 병렬 작업 붕괴
 2. **파일 소유권** (계약 §4): A는 `voron24_params.xacro` + `meshes/`, B는 `unity/`, C는 URDF 본문 + launch + 나머지 ROS2 패키지
 3. **Mock 우선**: 상대 산출물 대기 금지. 교체는 마지막에
-4. **주 1회 통합 세션**: 마일스톤 게이트를 3인 공동 확인
-5. **커밋 전 `contract_check.py`** — pre-commit 훅 등록 권장
+4. **커밋 전 `contract_check.py`** — pre-commit 훅 등록 권장
+
 ## 대상 기종 요약
  
 Voron 2.4 R2 / 250mm — **CoreXY + 플라잉 갠트리**. 베드 고정, 갠트리가 Z로 승강.

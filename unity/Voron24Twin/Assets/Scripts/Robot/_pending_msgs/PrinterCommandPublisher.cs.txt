@@ -1,0 +1,51 @@
+using UnityEngine;
+using Unity.Robotics.ROSTCPConnector;
+using RosCmd = RosMessageTypes.Voron24.PrinterCommandMsg;
+
+namespace Voron24.Robot
+{
+    /// <summary>
+    /// Unity -> ROS2 조작 명령 (계약 section 5).
+    /// UI 버튼의 OnClick 에 이 컴포넌트의 메서드를 연결하면 된다.
+    /// </summary>
+    public class PrinterCommandPublisher : MonoBehaviour
+    {
+        [SerializeField] string topic = "/printer/cmd";
+        [SerializeField] float jogStepMm = 10f;
+
+        ROSConnection _ros;
+
+        void Start()
+        {
+            _ros = ROSConnection.GetOrCreateInstance();
+            _ros.RegisterPublisher<RosCmd>(topic);
+        }
+
+        void Send(string cmd, float[] args = null, string payload = "")
+        {
+            if (_ros == null) return;
+            _ros.Publish(topic, new RosCmd
+            {
+                command = cmd,
+                args = args ?? new float[0],
+                payload = payload ?? "",
+            });
+        }
+
+        // args 단위는 mm (계약 section 5 의 jog 규약)
+        public void JogXPlus()  => Send("jog", new[] {  jogStepMm, 0f, 0f });
+        public void JogXMinus() => Send("jog", new[] { -jogStepMm, 0f, 0f });
+        public void JogYPlus()  => Send("jog", new[] { 0f,  jogStepMm, 0f });
+        public void JogYMinus() => Send("jog", new[] { 0f, -jogStepMm, 0f });
+        public void JogZPlus()  => Send("jog", new[] { 0f, 0f,  jogStepMm });
+        public void JogZMinus() => Send("jog", new[] { 0f, 0f, -jogStepMm });
+
+        public void Home()   => Send("home");
+        public void Pause()  => Send("pause");
+        public void Resume() => Send("resume");
+        public void Stop()   => Send("stop");
+
+        public void LoadGcode(string absolutePath) => Send("load_gcode", null, absolutePath);
+        public void SetSpeed(float scale) => Send("set_speed", new[] { scale });
+    }
+}
