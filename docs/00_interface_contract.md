@@ -55,7 +55,7 @@ REP-103 준수 (right-handed, Z-up).
  
 | 변환 | 담당 |
 |---|---|
-| mm → m (G-code, Moonraker) | ROS2 노드 |
+| mm → m (G-code) | ROS2 노드 |
 | mm → m (메시) | URDF `<mesh scale>` |
 | rad → deg (revolute) | Unity `JointStateSubscriber` |
 | Unity ↔ ROS 좌표계 | `ROSGeometry` 확장 (`.To<FLU>()`) |
@@ -258,8 +258,7 @@ string    payload
 │   ├── voron24_description/        A와 C의 접점 (§4 소유권 참조)
 │   ├── voron24_msgs/
 │   ├── voron24_gcode/
-│   ├── voron24_bringup/
-│   └── voron24_moonraker/
+│   └── voron24_bringup/
 └── unity/Voron24Twin/
     ├── README.md 
     ├── Assets/                 모델 산출물 메모
@@ -375,8 +374,8 @@ bash tools/smoke_test.sh
 | W1 | STEP 임포트, 파츠 인벤토리 | 프로젝트 셋업, 패키지 설치, `LocalMockDriver`로 선행 작업 | **mock URDF + mock 퍼블리셔 + contract_check** | `smoke_test.sh` 통과, RViz+Unity 동시 구동 |
 | W2 | 좌표 정렬, 링크 그룹핑, **좌표 실측** | mock URDF 임포트, 조인트 드라이버 | 커스텀 msg 확정, G-code 파서 | Unity가 mock 패턴에 반응 |
 | W3 | 메시 추출 + 데시메이션 | 카메라, UI, 압출 궤적 렌더 | G-code 플레이어, 궤적 퍼블리시 | `pattern:=square` 궤적이 Unity에 그려짐 |
-| W4 | **`voron24_params.xacro` 값 + 메시 커밋** | `use_meshes:=true` 전환, 머티리얼 | launch 통합, Moonraker 브릿지 | **실제 모델로 G-code 재생** |
-| W5 | 도어/디테일, LOD | 압출 렌더 최적화, 폴리시 | 실기 연동, 안전 인터록 | 전체 데모 |
+| W4 | **`voron24_params.xacro` 값 + 메시 커밋** | `use_meshes:=true` 전환, 머티리얼 | launch 통합 (`sim.launch.py`) | **실제 메시 모델로 G-code 재생** |
+| W5 | 도어/디테일, LOD | 압출 렌더 최적화, 폴리시 | G-code 재생 제어(일시정지/속도), 안정화 | 전체 데모 |
  
 W4의 A 산출물이 "URDF 작성"에서 "파라미터 값 채우기"로 축소된 점에 주의 (§4 단일 URDF 원칙).
  
