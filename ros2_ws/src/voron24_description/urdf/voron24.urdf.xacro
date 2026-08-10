@@ -26,7 +26,11 @@
   voron24_gcode/corexy.py 에서 변환해 별도 토픽으로 퍼블리시한다.
 -->
 <robot xmlns:xacro="http://www.ros.org/wiki/xacro" name="voron24">
-
+<!--  
+  xacro:arg — 실행 시 넘겨주는 인자
+  xacro:property — 받은 인자 값을 property, 변수로써 정의.
+  xacro:include —  다른 Xacro 파일 import.
+-->
   <xacro:arg name="use_meshes" default="false"/>
   <xacro:property name="use_meshes" value="$(arg use_meshes)"/>
 
@@ -36,6 +40,11 @@
   <!-- ==========================================================
        base_link — 프레임 + 패널 + 베드 + 전장 + Z모터
        ========================================================== -->
+<!--  
+  xacro:if & xacro:unless — 조건문
+  xacro:property — 받은 인자 값을 property, 변수로써 정의.
+  xacro:include —  다른 Xacro 파일 import.
+-->
   <link name="base_link">
     <xacro:if value="${use_meshes}">
       <visual>
@@ -76,6 +85,9 @@
   <!-- ==========================================================
        z_gantry — 갠트리 전체가 Z 로 승강 (플라잉 갠트리)
        ========================================================== -->
+<!--
+  xacro:link_geometry & xacro:box_inertia — voron24_description/urdf/voron24_macros.xacro에서 정의
+-->
   <link name="z_gantry">
     <xacro:link_geometry name="z_gantry" use_meshes="${use_meshes}"
                          bx="${gantry_x}" by="${gantry_y}" bz="${gantry_z}"

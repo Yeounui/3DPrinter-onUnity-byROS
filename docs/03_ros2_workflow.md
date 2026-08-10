@@ -336,7 +336,23 @@ ros2 launch voron24_bringup mock.launch.py pattern:=sweep      # 축 검증
 ros2 launch voron24_bringup mock.launch.py unity:=false        # 엔드포인트 없이
 ros2 launch voron24_bringup mock.launch.py use_meshes:=true    # W4
 ```
+
+## Step 5.1 UI 패널 (`/printer/status` 구독)
  
+```
+┌─ Printer Status ─────────────┐
+│ State    : PRINTING          │
+│ File     : benchy.gcode      │
+│ Layer    : 42 / 187          │
+│ Progress : ███████░░░  38%   │
+│ Position : X125.4 Y87.2 Z8.4 │
+└──────────────────────────────┘
+[◀◀] [▶/❚❚] [▶▶]  Speed: [1x ▼]
+```
+ 
+TextMeshPro 사용. 온도는 목표 대비 색상 변화(회색→주황→빨강) 적용 시 직관성 향상.
+ 
+
 ### W1 통합 게이트
  
 ```bash
@@ -347,7 +363,7 @@ bash tools/smoke_test.sh
 ```
  
 RViz와 Unity에서 **동시에** 같은 움직임이 보이면 통과.
- 
+
 ---
  
 ## Step 6 — 커스텀 메시지 (W2)
