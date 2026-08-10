@@ -30,7 +30,7 @@ import rclpy
 from rclpy.node import Node
 from sensor_msgs.msg import JointState
 
-# voron24_msgs 가 아직 빌드 안 됐어도 joint_states 만으로 동작하도록 한다.
+# voron24_msgs 가 빌드에 포함되지 않아도 joint_states 만으로 동작 가능케 함.
 from voron24_gcode.patterns import PatternGenerator, PATTERNS
 
 try:
@@ -46,7 +46,7 @@ JOINT_NAMES = ['joint_x', 'joint_y', 'joint_z']   # 계약 section 3. 변경 금
 class MockPublisher(Node):
 
     def __init__(self):
-        super().__init__('mock_publisher')
+        super().__init__('mock_publisher') # Node 이름을 mock_publisher로 정의.
 
         self.declare_parameter('pattern', 'lissajous')
         self.declare_parameter('rate', 50.0)
@@ -77,6 +77,9 @@ class MockPublisher(Node):
         self._prev_xyz = (0.0, 0.0, 0.0)
 
         self.js_pub = self.create_publisher(JointState, '/joint_states', 10)
+        # JointState: 보내는 데이터의 형식
+        # /joint_states: 데이터를 보낼 토픽 이름. /는 ROS 전체에서 사용하는 절대 토픽 이름.
+        # 10: QoS의 queue depth. 수신자가 처리가 지연된 경우, 최근 메시지를 최대 10개까지 보관. 10개 넘으면 오래된 메시지가 버려짐.
         self.create_timer(self.dt, self.tick)
 
         self.st_pub = None
@@ -85,12 +88,13 @@ class MockPublisher(Node):
             if self.get_parameter('publish_status').value:
                 self.st_pub = self.create_publisher(PrinterStatus, '/printer/status', 10)
                 self.create_timer(0.2, self.publish_status)
+                # 0.2초마다 self.publish_status()를 한 번 실행.
             if self.get_parameter('publish_extrusion').value:
                 self.ex_pub = self.create_publisher(ExtrusionPoint, '/printer/extrusion', 200)
         else:
             self.get_logger().warn(
-                'voron24_msgs 를 찾을 수 없습니다. /joint_states 만 퍼블리시합니다. '
-                '(colcon build --packages-select voron24_msgs 후 source)')
+                'Cannot find voron24_msgs. Publish /joint_status only. '
+                '(source ros2_ws/install/setup.bash after colcon build --packages-select voron24_msgs)')
 
         self.get_logger().info(
             f'mock publisher | pattern={self.pattern} rate={self.rate}Hz '
@@ -99,7 +103,7 @@ class MockPublisher(Node):
 
     # ------------------------------------------------------------------
     def compute(self, t):
-        """궤적 생성은 patterns.py 에 위임한다 (ROS 없이 단독 테스트 가능)."""
+        """Delegate trajectory generation to patterns.py (Enable standalone test without ROS)."""
         x, y, z, ext = self.gen(self.pattern, t)
         self.layer = self.gen.layer
         return x, y, z, ext
@@ -109,12 +113,13 @@ class MockPublisher(Node):
         self.t += self.dt
         x, y, z, extruding = self.compute(self.t)
 
+        # msg outputs.
         msg = JointState()
         msg.header.stamp = self.get_clock().now().to_msg()
         msg.name = list(JOINT_NAMES)
         msg.position = [x, y, z]
-        px, py, pz = self._prev_xyz
-        msg.velocity = [(x - px) / self.dt, (y - py) / self.dt, (z - pz) / self.dt]
+        px, py, pz = self._prev_xyz # coords to be outdated.
+        msg.velocity = [(x - px) / self.dt, (y - py) / self.dt, (z - pz) / self.dt] # delta value of x,y,z coord.
         self.js_pub.publish(msg)
 
         if self.ex_pub is not None and extruding:
