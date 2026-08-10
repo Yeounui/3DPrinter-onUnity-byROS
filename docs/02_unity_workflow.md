@@ -404,24 +404,7 @@ public void AddSegment(Vector3 posLocal, float width, float height,
 - 우클릭 드래그 → 오빗, 휠 → 줌
 - 프리셋 뷰: 정면 / 상단 / 노즐 클로즈업 / 도어 오픈
 - 노즐 추종 모드 토글
-### UI 패널 (`/printer/status` 구독)
- 
-```
-┌─ Printer Status ─────────────┐
-│ State    : PRINTING          │
-│ File     : benchy.gcode      │
-│ Layer    : 42 / 187          │
-│ Progress : ███████░░░  38%   │
-│ Nozzle   : 218.3 / 220.0 °C  │
-│ Bed      :  59.8 /  60.0 °C  │
-│ Chamber  :  41.2 °C          │
-│ Position : X125.4 Y87.2 Z8.4 │
-└──────────────────────────────┘
-[◀◀] [▶/❚❚] [▶▶]  Speed: [1x ▼]
-```
- 
-TextMeshPro 사용. 온도는 목표 대비 색상 변화(회색→주황→빨강) 적용 시 직관성 향상.
- 
+
 ---
  
 ## Step 9 — Unity → ROS2 퍼블리시 (W4)
