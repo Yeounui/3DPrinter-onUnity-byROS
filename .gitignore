@@ -28,6 +28,9 @@ unity/Voron24Twin/[Rr]ecordings/
 *.mdb
 *.opendb
 *.VC.db
+.vsconfig
+.vs/
+UpgradeLog.htm
 
 # ---- FreeCAD ----
 *.FCStd1

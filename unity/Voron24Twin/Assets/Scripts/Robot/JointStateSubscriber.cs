@@ -6,240 +6,524 @@ using RosJointState = RosMessageTypes.Sensor.JointStateMsg;
 namespace Voron24.Robot
 {
     /// <summary>
-    /// /joint_states 를 구독해 ArticulationBody 를 구동한다.
+    /// ROS2의 /joint_states를 구독하여
+    /// Voron 2.4의 ArticulationBody를 구동한다.
     ///
-    /// 단위 규약 (계약 00_interface_contract.md section 2):
-    ///   ROS      : prismatic = m,      revolute = rad   (SI)
-    ///   Unity AB : prismatic = m,      revolute = degree
-    ///   -> revolute 만 rad2deg 변환한다. prismatic 은 그대로.
+    /// 단위 규약:
+    /// - ROS prismatic joint: m
+    /// - ROS revolute joint: rad
+    /// - Unity prismatic joint: m
+    /// - Unity revolute joint: degree
     ///
-    /// 조인트는 이름으로 자동 탐색한다. URDF-Importer 가 링크명으로 GameObject 를
-    /// 만들기 때문에, 메시 교체 후 URDF 를 재임포트해도 Inspector 재연결이 필요 없다.
+    /// ROS 조인트 이름과 Unity 링크 이름을 별도로 관리한다.
     /// </summary>
     public class JointStateSubscriber : MonoBehaviour
     {
         [Header("ROS")]
-        [SerializeField] string topic = "/joint_states";
+        [SerializeField]
+        private string topic = "/joint_states";
 
         [Header("Robot")]
-        [Tooltip("비워두면 이 컴포넌트가 붙은 GameObject 를 루트로 삼는다")]
-        [SerializeField] Transform robotRoot;
-
-        [Tooltip("계약 section 3 의 조인트 이름. URDF 와 정확히 일치해야 한다.")]
+        [Tooltip("Hierarchy에 임포트된 voron24 최상위 객체")]
         [SerializeField]
-        string[] jointNames = { "joint_x", "joint_y", "joint_z" };
+        private Transform robotRoot;
+
+        [Tooltip("ROS /joint_states에서 사용하는 조인트 이름")]
+        [SerializeField]
+        private string[] jointNames =
+        {
+            "joint_x",
+            "joint_y",
+            "joint_z"
+        };
+
+        [Tooltip("각 ROS 조인트와 연결되는 Unity 링크 이름")]
+        [SerializeField]
+        private string[] linkNames =
+        {
+            "toolhead",
+            "x_beam",
+            "z_gantry"
+        };
 
         [Header("Mode")]
-        [Tooltip("체크하면 물리를 우회하고 Transform 을 직접 갱신한다. " +
-                 "데모에서 물리가 불안정할 때의 안전장치.")]
-        [SerializeField] bool kinematicMode = false;
+        [Tooltip(
+            "체크하면 ArticulationBody 물리를 우회하고 " +
+            "Transform을 직접 이동시킨다.")]
+        [SerializeField]
+        private bool kinematicMode = true;
 
         [Header("Smoothing")]
-        [Tooltip("퍼블리시 주기(50Hz)보다 물리 주기가 빠를 때 보간. 0 이면 끔.")]
-        [SerializeField] float smoothTime = 0.02f;
+        [Tooltip("목표 위치 보간 시간. 0이면 보간하지 않는다.")]
+        [SerializeField]
+        private float smoothTime = 0.02f;
 
         [Header("Debug")]
-        [SerializeField] bool verbose = true;
-        [SerializeField] bool drawGizmos = true;
+        [SerializeField]
+        private bool verbose = true;
 
-        class Joint
+        [SerializeField]
+        private bool drawGizmos = true;
+
+        private class Joint
         {
             public string name;
+            public string linkName;
             public ArticulationBody body;
             public Transform tf;
             public bool isRevolute;
-            public Vector3 localAxis;      // Unity 로컬 좌표계에서의 이동 축
-            public Vector3 restPos;        // joint 값 0 일 때의 localPosition
+            public Vector3 localAxis;
+            public Vector3 restPos;
+            public Quaternion restRot;
             public float target;
             public float current;
-            public float vel;
+            public float velocity;
             public bool bound;
         }
 
-        readonly List<Joint> _joints = new();
-        readonly Dictionary<string, Joint> _byName = new();
-        bool _gotFirstMessage;
-        int _messageCount;
-        float _lastMessageTime;
+        private readonly List<Joint> joints =
+            new List<Joint>();
 
-        // ------------------------------------------------------------------
-        void Awake()
+        private readonly Dictionary<string, Joint> jointsByName =
+            new Dictionary<string, Joint>();
+
+        private bool gotFirstMessage;
+        private int messageCount;
+        private float lastMessageTime;
+
+        private void Awake()
         {
-            if (robotRoot == null) robotRoot = transform;
+            if (robotRoot == null)
+            {
+                robotRoot = transform;
+            }
+
             Bind();
         }
 
-        void Start()
+        private void Start()
         {
-            ROSConnection.GetOrCreateInstance().Subscribe<RosJointState>(topic, OnJointState);
-            if (verbose) Debug.Log($"[JointState] subscribed to {topic}");
+            ROSConnection.GetOrCreateInstance()
+                .Subscribe<RosJointState>(topic, OnJointState);
+
+            if (verbose)
+            {
+                Debug.Log(
+                    $"[JointState] subscribed to {topic}");
+            }
         }
 
-        /// <summary>이름으로 ArticulationBody 를 찾아 연결한다. 재임포트 후에도 동작.</summary>
+        /// <summary>
+        /// ROS 조인트 이름과 Unity 링크 객체를 연결한다.
+        /// </summary>
         public void Bind()
         {
-            _joints.Clear();
-            _byName.Clear();
+            joints.Clear();
+            jointsByName.Clear();
 
-            foreach (var n in jointNames)
+            if (robotRoot == null)
             {
-                var j = new Joint { name = n };
-                var tf = FindDeep(robotRoot, n);
+                Debug.LogError(
+                    "[JointState] Robot Root가 비어 있습니다. " +
+                    "Hierarchy의 voron24 객체를 연결하십시오.");
 
-                if (tf == null)
+                return;
+            }
+
+            if (jointNames == null || linkNames == null)
+            {
+                Debug.LogError(
+                    "[JointState] Joint Names 또는 Link Names가 없습니다.");
+
+                return;
+            }
+
+            if (jointNames.Length != linkNames.Length)
+            {
+                Debug.LogError(
+                    "[JointState] Joint Names와 Link Names의 " +
+                    "개수가 서로 다릅니다.");
+
+                return;
+            }
+
+            for (int i = 0; i < jointNames.Length; i++)
+            {
+                string jointName = jointNames[i];
+                string linkName = linkNames[i];
+
+                Joint joint = new Joint
                 {
-                    Debug.LogError($"[JointState] '{n}' 이름의 GameObject 를 찾을 수 없습니다. " +
-                                   $"URDF 의 조인트 이름과 계약 section 3 을 대조하세요.");
+                    name = jointName,
+                    linkName = linkName,
+                    bound = false,
+                    target = 0f,
+                    current = 0f,
+                    velocity = 0f
+                };
+
+                Transform linkTransform =
+                    FindDeep(robotRoot, linkName);
+
+                if (linkTransform == null)
+                {
+                    Debug.LogError(
+                        $"[JointState] Unity 객체 '{linkName}'을 " +
+                        "Robot Root 아래에서 찾을 수 없습니다.");
                 }
                 else
                 {
-                    j.tf = tf;
-                    j.body = tf.GetComponent<ArticulationBody>();
-                    if (j.body == null)
+                    joint.tf = linkTransform;
+
+                    joint.body =
+                        linkTransform.GetComponent<ArticulationBody>();
+
+                    if (joint.body == null)
                     {
-                        Debug.LogError($"[JointState] '{n}' 에 ArticulationBody 가 없습니다. " +
-                                       $"URDF-Importer 로 임포트한 로봇인지 확인하세요.");
+                        Debug.LogError(
+                            $"[JointState] '{linkName}'에 " +
+                            "ArticulationBody가 없습니다.");
                     }
                     else
                     {
-                        j.isRevolute = j.body.jointType == ArticulationJointType.RevoluteJoint;
-                        j.restPos = tf.localPosition;
-                        j.localAxis = AxisFromDrive(j.body);
-                        j.bound = true;
+                        joint.isRevolute =
+                            joint.body.jointType ==
+                            ArticulationJointType.RevoluteJoint;
 
-                        if (Mathf.Approximately(j.body.mass, 0f))
+                        joint.restPos =
+                            linkTransform.localPosition;
+
+                        joint.restRot =
+                            linkTransform.localRotation;
+
+                        joint.localAxis =
+                            AxisFromDrive(joint.body);
+
+                        joint.bound = true;
+
+                        if (Mathf.Approximately(
+                            joint.body.mass, 0f))
                         {
-                            Debug.LogError($"[JointState] '{n}' 의 mass 가 0 입니다. " +
-                                           $"URDF 의 <inertial> 누락 — CAD/ROS2 담당에게 알리세요.");
+                            Debug.LogError(
+                                $"[JointState] '{linkName}'의 " +
+                                "Mass가 0입니다.");
                         }
                     }
                 }
 
-                _joints.Add(j);
-                _byName[n] = j;
+                joints.Add(joint);
+
+                // ROS 조인트 이름을 Dictionary 검색 키로 사용한다.
+                jointsByName[jointName] = joint;
             }
 
             if (verbose)
             {
-                int ok = _joints.FindAll(x => x.bound).Count;
-                Debug.Log($"[JointState] bound {ok}/{_joints.Count} joints under '{robotRoot.name}'");
+                int boundCount =
+                    joints.FindAll(joint => joint.bound).Count;
+
+                Debug.Log(
+                    $"[JointState] bound {boundCount}/" +
+                    $"{joints.Count} joints under " +
+                    $"'{robotRoot.name}'");
             }
         }
 
-        static Vector3 AxisFromDrive(ArticulationBody b)
+        /// <summary>
+        /// URDF Importer가 생성한 조인트의 로컬 이동축을 구한다.
+        /// </summary>
+        private static Vector3 AxisFromDrive(
+            ArticulationBody body)
         {
-            // URDF-Importer 는 조인트 축을 로컬 X 로 정렬한 뒤 anchorRotation 으로 회전시킨다.
-            return b.anchorRotation * Vector3.right;
+            return body.anchorRotation * Vector3.right;
         }
 
-        static Transform FindDeep(Transform root, string name)
+        /// <summary>
+        /// 지정된 이름의 자식 객체를 재귀적으로 검색한다.
+        /// </summary>
+        private static Transform FindDeep(
+            Transform root,
+            string objectName)
         {
-            if (root.name == name) return root;
+            if (root == null)
+            {
+                return null;
+            }
+
+            if (root.name == objectName)
+            {
+                return root;
+            }
+
             for (int i = 0; i < root.childCount; i++)
             {
-                var r = FindDeep(root.GetChild(i), name);
-                if (r != null) return r;
+                Transform result =
+                    FindDeep(root.GetChild(i), objectName);
+
+                if (result != null)
+                {
+                    return result;
+                }
             }
+
             return null;
         }
 
-        // ------------------------------------------------------------------
-        void OnJointState(RosJointState msg)
+        /// <summary>
+        /// ROS2 /joint_states 메시지를 수신한다.
+        /// </summary>
+        private void OnJointState(RosJointState message)
         {
-            _messageCount++;
-            _lastMessageTime = Time.time;
-
-            if (verbose && !_gotFirstMessage)
+            if (message == null)
             {
-                _gotFirstMessage = true;
-                Debug.Log($"[JointState] first message: names=[{string.Join(", ", msg.name)}] " +
-                          $"positions=[{string.Join(", ", msg.position)}]");
+                return;
+            }
 
-                foreach (var n in jointNames)
+            messageCount++;
+            lastMessageTime = Time.time;
+
+            if (verbose && !gotFirstMessage)
+            {
+                gotFirstMessage = true;
+
+                Debug.Log(
+                    "[JointState] first message: " +
+                    $"names=[{string.Join(", ", message.name)}] " +
+                    $"positions=[{string.Join(", ", message.position)}]");
+
+                foreach (string jointName in jointNames)
                 {
-                    if (System.Array.IndexOf(msg.name, n) < 0)
-                        Debug.LogWarning($"[JointState] '{n}' 이 메시지에 없습니다. " +
-                                         $"퍼블리셔의 msg.name 을 확인하세요 (계약 section 5).");
+                    if (System.Array.IndexOf(
+                        message.name, jointName) < 0)
+                    {
+                        Debug.LogWarning(
+                            $"[JointState] '{jointName}'이 " +
+                            "/joint_states 메시지에 없습니다.");
+                    }
                 }
             }
 
-            int count = Mathf.Min(msg.name.Length, msg.position.Length);
+            int nameCount =
+                message.name != null ? message.name.Length : 0;
+
+            int positionCount =
+                message.position != null
+                    ? message.position.Length
+                    : 0;
+
+            int count =
+                Mathf.Min(nameCount, positionCount);
+
             for (int i = 0; i < count; i++)
             {
-                if (!_byName.TryGetValue(msg.name[i], out var j)) continue;
-                float v = (float)msg.position[i];
-                j.target = j.isRevolute ? v * Mathf.Rad2Deg : v;   // rad -> deg
+                string jointName = message.name[i];
+
+                if (!jointsByName.TryGetValue(
+                    jointName, out Joint joint))
+                {
+                    continue;
+                }
+
+                float value =
+                    (float)message.position[i];
+
+                joint.target =
+                    joint.isRevolute
+                        ? value * Mathf.Rad2Deg
+                        : value;
             }
         }
 
-        // ------------------------------------------------------------------
-        void FixedUpdate()
+        private void FixedUpdate()
         {
-            foreach (var j in _joints)
+            foreach (Joint joint in joints)
             {
-                if (!j.bound) continue;
-
-                j.current = smoothTime > 0f
-                    ? Mathf.SmoothDamp(j.current, j.target, ref j.vel,
-                                       smoothTime, Mathf.Infinity, Time.fixedDeltaTime)
-                    : j.target;
-
-                if (kinematicMode)
+                if (!joint.bound)
                 {
-                    // 물리 우회: 조인트 로컬 축을 따라 Transform 을 직접 이동
-                    float d = j.isRevolute ? 0f : j.current;
-                    j.tf.localPosition = j.restPos + j.localAxis * d;
-                    if (j.isRevolute)
-                        j.tf.localRotation = Quaternion.AngleAxis(j.current, j.localAxis);
+                    continue;
+                }
+
+                if (smoothTime > 0f)
+                {
+                    joint.current = Mathf.SmoothDamp(
+                        joint.current,
+                        joint.target,
+                        ref joint.velocity,
+                        smoothTime,
+                        Mathf.Infinity,
+                        Time.fixedDeltaTime);
                 }
                 else
                 {
-                    var drive = j.body.xDrive;      // prismatic/revolute 모두 xDrive
-                    drive.target = j.current;
-                    j.body.xDrive = drive;
+                    joint.current = joint.target;
+                }
+
+                if (kinematicMode)
+                {
+                    ApplyKinematic(joint);
+                }
+                else
+                {
+                    ApplyArticulationDrive(joint);
                 }
             }
         }
 
-        // ------------------------------------------------------------------
-        // 외부 조회 / 디버그
-        // ------------------------------------------------------------------
-        public float GetTarget(string jointName)
-            => _byName.TryGetValue(jointName, out var j) ? j.target : 0f;
+        /// <summary>
+        /// Transform을 직접 변경하여 조인트를 이동시킨다.
+        /// </summary>
+        private static void ApplyKinematic(Joint joint)
+        {
+            if (joint.isRevolute)
+            {
+                joint.tf.localRotation =
+                    joint.restRot *
+                    Quaternion.AngleAxis(
+                        joint.current,
+                        joint.localAxis);
+            }
+            else
+            {
+                joint.tf.localPosition =
+                    joint.restPos +
+                    joint.localAxis * joint.current;
+            }
+        }
 
         /// <summary>
-        /// ROS 없이 외부(LocalMockDriver 등)에서 목표값을 주입한다.
-        /// 단위는 ROS 규약과 동일: prismatic = m, revolute = rad.
+        /// ArticulationBody의 Drive Target을 변경한다.
         /// </summary>
-        public void SetTargetExternal(string jointName, float value)
+        private static void ApplyArticulationDrive(
+            Joint joint)
         {
-            if (!_byName.TryGetValue(jointName, out var j)) return;
-            j.target = j.isRevolute ? value * Mathf.Rad2Deg : value;
+            ArticulationDrive drive =
+                joint.body.xDrive;
+
+            drive.target = joint.current;
+
+            joint.body.xDrive = drive;
+        }
+
+        /// <summary>
+        /// LocalMockDriver 등 외부 스크립트에서
+        /// 목표 위치를 전달할 때 사용한다.
+        /// </summary>
+        public void SetTargetExternal(
+            string jointName,
+            float value)
+        {
+            if (!jointsByName.TryGetValue(
+                jointName, out Joint joint))
+            {
+                if (verbose)
+                {
+                    Debug.LogWarning(
+                        $"[JointState] 외부 목표를 적용할 " +
+                        $"조인트 '{jointName}'을 찾지 못했습니다.");
+                }
+
+                return;
+            }
+
+            joint.target =
+                joint.isRevolute
+                    ? value * Mathf.Rad2Deg
+                    : value;
+        }
+
+        public float GetTarget(string jointName)
+        {
+            if (jointsByName.TryGetValue(
+                jointName, out Joint joint))
+            {
+                return joint.target;
+            }
+
+            return 0f;
         }
 
         public float GetActual(string jointName)
-            => _byName.TryGetValue(jointName, out var j) && j.body != null
-               ? j.body.jointPosition[0] : 0f;
-
-        /// <summary>마지막 메시지 이후 경과 시간. 1초 넘으면 연결이 끊긴 것.</summary>
-        public float TimeSinceLastMessage => Time.time - _lastMessageTime;
-
-        public bool IsConnected => _gotFirstMessage && TimeSinceLastMessage < 1.0f;
-
-        void OnDrawGizmos()
         {
-            if (!drawGizmos || !Application.isPlaying) return;
-            foreach (var j in _joints)
+            if (!jointsByName.TryGetValue(
+                jointName, out Joint joint))
             {
-                if (!j.bound) continue;
+                return 0f;
+            }
+
+            if (kinematicMode)
+            {
+                return joint.current;
+            }
+
+            if (joint.body == null)
+            {
+                return 0f;
+            }
+
+            if (joint.body.jointPosition.dofCount == 0)
+            {
+                return 0f;
+            }
+
+            return joint.body.jointPosition[0];
+        }
+
+        public float TimeSinceLastMessage
+        {
+            get
+            {
+                if (!gotFirstMessage)
+                {
+                    return Mathf.Infinity;
+                }
+
+                return Time.time - lastMessageTime;
+            }
+        }
+
+        public bool IsConnected
+        {
+            get
+            {
+                return gotFirstMessage &&
+                       TimeSinceLastMessage < 1.0f;
+            }
+        }
+
+        private void OnDrawGizmos()
+        {
+            if (!drawGizmos || !Application.isPlaying)
+            {
+                return;
+            }
+
+            foreach (Joint joint in joints)
+            {
+                if (!joint.bound || joint.tf == null)
+                {
+                    continue;
+                }
+
                 Gizmos.color = Color.cyan;
-                Gizmos.DrawRay(j.tf.position, j.tf.TransformDirection(j.localAxis) * 0.05f);
+
+                Vector3 worldAxis =
+                    joint.tf.parent != null
+                        ? joint.tf.parent.TransformDirection(
+                            joint.localAxis)
+                        : joint.localAxis;
+
+                Gizmos.DrawRay(
+                    joint.tf.position,
+                    worldAxis.normalized * 0.05f);
             }
         }
 
 #if UNITY_EDITOR
         [ContextMenu("Rebind Joints")]
-        void RebindFromMenu() => Bind();
+        private void RebindFromMenu()
+        {
+            Bind();
+        }
 #endif
     }
 }

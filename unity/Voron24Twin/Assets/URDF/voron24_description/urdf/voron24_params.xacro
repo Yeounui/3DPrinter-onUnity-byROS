@@ -1,0 +1,117 @@
+<?xml version="1.0"?>
+<!--
+  voron24_params.xacro
+  ====================
+  Voron 2.4 R2 / 250mm 의 모든 치수를 여기 한 곳에 모은다.
+
+  ★ CAD 담당(A)은 이 파일만 수정하면 된다.
+    cad/measurements.md 의 실측값(mm)을 1000으로 나눠 m 로 넣을 것.
+    다른 xacro 파일은 건드리지 말 것.
+
+  MEASURED 플래그
+    false = 아직 추정치 (mock 단계)
+    true  = A 실측 완료
+  실측 완료 시 각 항목의 (추정) 주석을 지우고 근거를 적어둘 것.
+-->
+<robot xmlns:xacro="http://www.ros.org/wiki/xacro">
+
+  <!-- ==========================================================
+       실측 상태
+       ========================================================== -->
+  <xacro:property name="MEASURED" value="false"/>
+  <xacro:property name="MEAS_DATE" value="TBD"/>
+  <xacro:property name="MEAS_BY"   value="TBD"/>
+
+  <!-- ==========================================================
+       빌드 볼륨 / 스트로크  [m]
+       ========================================================== -->
+  <xacro:property name="stroke_x" value="0.250"/>
+  <xacro:property name="stroke_y" value="0.250"/>
+  <xacro:property name="stroke_z" value="0.250"/>
+
+  <!-- ==========================================================
+       조인트 origin  [m]  — base_link 원점 = 프레임 하단면 정중앙
+       ========================================================== -->
+
+  <!-- joint_z : base_link -> z_gantry (prismatic, axis 0 0 1)
+       joint_z=0 일 때 노즐이 베드 상면에 닿는다.
+       측정: 갠트리 Y익스트루전 하면의 Z 높이 -->
+  <xacro:property name="jz_x" value="0.0"/>
+  <xacro:property name="jz_y" value="0.0"/>
+  <xacro:property name="jz_z" value="0.2145"/>      <!-- (추정) -->
+
+  <!-- joint_y : z_gantry -> x_beam (prismatic, axis 0 1 0)
+       joint_y=0 일 때 X빔이 최전방(베드 Y=0 라인) -->
+  <xacro:property name="jy_x" value="0.0"/>
+  <xacro:property name="jy_y" value="-0.125"/>      <!-- (추정) -->
+  <xacro:property name="jy_z" value="0.012"/>       <!-- (추정) -->
+
+  <!-- joint_x : x_beam -> toolhead (prismatic, axis 1 0 0)
+       joint_x=0 일 때 툴헤드가 최좌측(베드 X=0 라인) -->
+  <xacro:property name="jx_x" value="-0.125"/>      <!-- (추정) -->
+  <xacro:property name="jx_y" value="0.0"/>
+  <xacro:property name="jx_z" value="0.0"/>
+
+  <!-- nozzle : toolhead -> nozzle (fixed) — TCP -->
+  <xacro:property name="noz_x" value="0.0"/>
+  <xacro:property name="noz_y" value="0.0085"/>     <!-- (추정) -->
+  <xacro:property name="noz_z" value="-0.0520"/>    <!-- (추정) -->
+
+  <!-- bed_origin : base_link -> bed_origin (fixed)
+       G-code (0,0,0). 베드 상면의 좌전방 프린트 원점 코너. -->
+  <xacro:property name="bed_x" value="-0.125"/>     <!-- (추정) -->
+  <xacro:property name="bed_y" value="-0.125"/>     <!-- (추정) -->
+  <xacro:property name="bed_z" value="0.0640"/>     <!-- (추정) -->
+
+  <!-- ==========================================================
+       질량 [kg] / 관성 근사용 박스 치수 [m]
+       A 의 cad/inertial_snippets.xml 값으로 교체
+       ========================================================== -->
+  <xacro:property name="m_base"     value="12.0"/>
+  <xacro:property name="m_gantry"   value="2.2"/>
+  <xacro:property name="m_beam"     value="0.9"/>
+  <xacro:property name="m_toolhead" value="0.45"/>
+
+  <!-- ==========================================================
+       Mock 표시용 박스 (use_meshes:=false 일 때만 사용)
+       실측과 무관. 눈으로 구조를 확인하기 위한 것.
+       ========================================================== -->
+  <xacro:property name="frame_x" value="0.350"/>
+  <xacro:property name="frame_y" value="0.350"/>
+  <xacro:property name="frame_z" value="0.465"/>
+
+  <xacro:property name="bed_plate_x" value="0.250"/>
+  <xacro:property name="bed_plate_y" value="0.250"/>
+  <xacro:property name="bed_plate_z" value="0.008"/>
+
+  <xacro:property name="gantry_x" value="0.330"/>
+  <xacro:property name="gantry_y" value="0.330"/>
+  <xacro:property name="gantry_z" value="0.030"/>
+
+  <xacro:property name="beam_x" value="0.320"/>
+  <xacro:property name="beam_y" value="0.030"/>
+  <xacro:property name="beam_z" value="0.030"/>
+
+  <xacro:property name="th_x" value="0.055"/>
+  <xacro:property name="th_y" value="0.060"/>
+  <xacro:property name="th_z" value="0.090"/>
+
+  <!-- ==========================================================
+       CoreXY 벨트 (모터 각도 시각화용, 기구학과 무관)
+       ========================================================== -->
+  <xacro:property name="belt_pitch"   value="0.002"/>   <!-- GT2 -->
+  <xacro:property name="pulley_teeth" value="20"/>
+
+  <!-- ==========================================================
+       조인트 동역학 / 리밋
+       ========================================================== -->
+  <xacro:property name="vel_xy"    value="0.5"/>    <!-- m/s -->
+  <xacro:property name="vel_z"     value="0.05"/>
+  <xacro:property name="eff_xy"    value="50"/>     <!-- N -->
+  <xacro:property name="eff_z"     value="200"/>
+  <xacro:property name="damp_xy"   value="0.5"/>
+  <xacro:property name="damp_z"    value="5.0"/>
+  <xacro:property name="fric_xy"   value="0.2"/>
+  <xacro:property name="fric_z"    value="2.0"/>
+
+</robot>
