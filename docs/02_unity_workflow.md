@@ -4,77 +4,6 @@
 > **최종 산출물**: `unity/Voron24Twin/` — G-code 재생에 맞춰 실시간 구동되는 Voron 2.4 디지털 트윈
 > **선행**: [00_interface_contract.md](00_interface_contract.md) 숙지 — 특히 §2 단위, §3 조인트명, §6 토픽
 > **병렬화 유의**: A의 메시를 대기하지 않을 것. C의 mock URDF로 로직 전부 완성 후 W4에 `use_meshes:=true`로 전환. C의 엔드포인트조차 없으면 `LocalMockDriver`로 선행 작업 가능.
-
-## 이 문서의 목적과 내 역할
-
-이 프로젝트는 실제 Voron 2.4 R2 250 mm 프린터를 Unity와 ROS2에서 재현하는 **디지털 트윈** 프로젝트다. Unity 담당자 B의 역할은 STEP 파일을 단순히 화면에 표시하는 것이 아니라, A의 CAD 형상과 C의 ROS2 데이터를 연결하여 다음 파이프라인을 완성하는 것이다.
-
-```text
-A의 링크별 STL + C의 URDF/Xacro
-                ↓
-          Unity URDF Import
-                ↓
-C의 /joint_states → JointStateSubscriber → ArticulationBody 구동
-                ↓
-     상태 UI + 노즐 추적 + 압출 궤적 표시
-                ↓
-       Unity 명령 → /printer/cmd → ROS2
-```
-
-| 담당 | 담당 작업 | Unity와의 접점 |
-|---|---|---|
-| A — CAD | STEP 원본 분리, visual/collision STL 생성, 조인트 위치 실측 | B는 링크별 STL과 실측 파라미터를 실제 모델 전환 단계에서 반영 |
-| **B — Unity** | 모델 표시, 조인트 구동, 카메라·UI·압출 궤적, ROS 연결 | A의 형상과 C의 데이터를 Unity에서 통합하고 검증 |
-| C — ROS2 | URDF/Xacro, 토픽, G-code 재생, ROS-TCP-Endpoint | B는 메시를 구독해 모델을 움직이고 사용자 명령을 송신 |
-
-### 현재 확보된 자료와 진행 단계
-
-현재 작업 폴더를 기준으로 확인된 상태다.
-
-| 자료 | 상태 | 판단 및 다음 조치 |
-|---|---|---|
-| `02_unity_workflow.md` | 확보 | 본 문서를 작업 기준으로 사용 |
-| `Voron_2.4r2_Assembly.step` | 확보, 약 241 MB | 전체 CAD 조립 원본. Unity 최종 입력물이 아니라 A의 링크별 STL 추출 원본 |
-| `00_interface_contract.md` | 현재 작업 폴더에서 미확인 | 저장소 `docs/`에서 정식 파일을 확보하고 대화 로그가 아닌 정식 계약을 기준으로 사용 |
-| Unity 프로젝트 | 현재 작업 폴더에서 미확인 | `unity/Voron24Twin/` 인수 또는 생성 필요 |
-| mock URDF/Xacro | 현재 작업 폴더에서 미확인 | C에게 `voron24_description` 패키지 요청 |
-| Unity 구동 스크립트 | 현재 작업 폴더에서 미확인 | mock 패키지 또는 저장소에서 존재 여부 확인 후 구현 |
-| 링크별 visual/collision STL | 현재 작업 폴더에서 미확인 | W4 전 A에게 계약 형식으로 인수 |
-
-따라서 현재 단계는 **구현 전 자료 인수 및 환경 준비 단계**다. 먼저 계약 문서와 Unity 프로젝트, mock URDF를 확보한 뒤 Step 1부터 진행한다. 전체 STEP 어셈블리를 Unity에 직접 임포트하여 임의로 링크를 구성하지 않는다.
-
-### STEP 원본 사용 원칙
-
-확인된 `Voron_2.4r2_Assembly.step`은 AP214 계열의 전체 조립 파일이며 `Gantry`, `A/B Drives`, 모터, 풀리, 체결 부품 등 많은 파트를 포함한다. 길이 단위에는 millimetre가 정의되어 있다.
-
-A가 이 원본을 가공하여 다음 계약 파일을 제공한다.
-
-```text
-meshes/visual/base_link.stl
-meshes/visual/z_gantry.stl
-meshes/visual/x_beam.stl
-meshes/visual/toolhead.stl
-meshes/collision/base_link.stl
-meshes/collision/z_gantry.stl
-meshes/collision/x_beam.stl
-meshes/collision/toolhead.stl
-```
-
-B는 STEP 전체 조립 구조의 부품명을 Unity 조인트명으로 직접 사용하지 않는다. Unity 링크와 조인트는 오직 계약의 `base_link`, `z_gantry`, `x_beam`, `toolhead`, `nozzle`, `bed_origin` 및 `joint_x`, `joint_y`, `joint_z`를 사용한다.
-
-### 전체 진행 순서
-
-| 단계 | Unity 담당 작업 | 입력물 | 완료 판단 |
-|---|---|---|---|
-| 0. 계약·자료 인수 | 정식 계약, 저장소, Unity 버전, ROS 실행 환경 확인 | 00 문서, 저장소 정보 | 파일 위치와 팀 연결 조건을 모두 기록 |
-| 1. 프로젝트 기반 | 패키지·Git·Physics·씬 설정 | Unity 프로젝트 | Console 빨간 오류 없음 |
-| 2. mock 임포트 | `use_meshes:=false` URDF 임포트 | C의 Xacro | 모델 자세·질량·링크 트리 정상 |
-| 3. Unity 단독 검증 | LocalMockDriver로 X/Y/Z 구동 | mock URDF | ROS 없이 방향·범위 통과 |
-| 4. ROS 조인트 연결 | `/joint_states` 구독 | C의 mock publisher | RViz와 Unity 자세 일치 |
-| 5. 시각화 | 상태 UI·노즐 추적·압출 궤적 | custom msgs | 출력 과정 실시간 표시 |
-| 6. 명령 송신 | `/printer/cmd` 퍼블리시 | UI 입력 | ROS2에서 명령 수신 확인 |
-| 7. 실제 메시 전환 | `use_meshes:=true` 재임포트 | A의 STL·실측값 | mock과 동일한 축 동작 |
-| 8. 통합 인수 | 성능·연결·좌표·Git 검증 | 전체 시스템 | W1~W5 게이트 통과 |
  
 ---
  
@@ -404,7 +333,24 @@ public void AddSegment(Vector3 posLocal, float width, float height,
 - 우클릭 드래그 → 오빗, 휠 → 줌
 - 프리셋 뷰: 정면 / 상단 / 노즐 클로즈업 / 도어 오픈
 - 노즐 추종 모드 토글
-
+### UI 패널 (`/printer/status` 구독)
+ 
+```
+┌─ Printer Status ─────────────┐
+│ State    : PRINTING          │
+│ File     : benchy.gcode      │
+│ Layer    : 42 / 187          │
+│ Progress : ███████░░░  38%   │
+│ Nozzle   : 218.3 / 220.0 °C  │
+│ Bed      :  59.8 /  60.0 °C  │
+│ Chamber  :  41.2 °C          │
+│ Position : X125.4 Y87.2 Z8.4 │
+└──────────────────────────────┘
+[◀◀] [▶/❚❚] [▶▶]  Speed: [1x ▼]
+```
+ 
+TextMeshPro 사용. 온도는 목표 대비 색상 변화(회색→주황→빨강) 적용 시 직관성 향상.
+ 
 ---
  
 ## Step 9 — Unity → ROS2 퍼블리시 (W4)
@@ -470,117 +416,6 @@ A의 메시가 들어온 후:
 - [ ] RViz와 Unity 자세 육안 일치
 - [ ] Profiler에서 60fps 유지 (압출 궤적 5,000 세그먼트 기준)
 - [ ] `ConnectionMonitor` 오버레이가 CONNECTED
-
----
-
-## Step 12 — 현재 시점의 착수 순서
-
-현재 작업 폴더에는 Unity 프로젝트, mock URDF와 링크별 STL이 아직 확인되지 않았다. 따라서 다음 순서로 착수한다.
-
-### 1순위 — 정식 계약과 저장소 확보
-
-- [ ] `docs/00_interface_contract.md` 정식 파일을 확보
-- [ ] `unity/Voron24Twin/` 프로젝트 위치 확인
-- [ ] 팀 공용 브랜치와 Unity 작업 브랜치 확인
-- [ ] Unity LTS 버전을 팀원과 동일하게 맞춤
-- [ ] ROS2가 Ubuntu, WSL2 또는 별도 PC 중 어디에서 실행되는지 확인
-- [ ] ROS IP, port `10000`, `ROS_DOMAIN_ID` 기록
-
-### 2순위 — C의 mock 입력물 인수
-
-- [ ] `ros2_ws/src/voron24_description/` 확보
-- [ ] `voron24.urdf.xacro`, `voron24_params.xacro`, `voron24_macros.xacro` 확인
-- [ ] `LocalMockDriver.cs`, `JointStateSubscriber.cs`, `ConnectionMonitor.cs`, `NozzleTracker.cs` 존재 여부 확인
-- [ ] `pattern:=home`과 `pattern:=sweep` 실행 방법 확인
-- [ ] `/joint_states`가 50Hz로 `joint_x`, `joint_y`, `joint_z`를 보내는지 확인
-
-### 3순위 — Unity mock 게이트 통과
-
-- [ ] Step 1의 프로젝트 설정 완료
-- [ ] Step 2의 mock URDF 임포트 완료
-- [ ] Step 4의 Unity 단독 X/Y/Z 축 검증 완료
-- [ ] Step 3의 ROS 조인트 구독 완료
-- [ ] RViz와 Unity 자세 비교 결과 기록
-
-### 4순위 — 시각화와 제어 기능
-
-- [ ] Step 5의 노즐 위치 추적
-- [ ] Step 6의 custom message C# 생성
-- [ ] Step 7의 압출 궤적 렌더링
-- [ ] Step 8의 카메라와 상태 UI
-- [ ] Step 9의 Unity → ROS2 명령 전송
-
-### 5순위 — 실제 CAD 메시 전환
-
-- [ ] A에게 visual/collision STL 8개 인수
-- [ ] `voron24_params.xacro` 실측값과 측정 근거 인수
-- [ ] C의 `contract_check.py --use-meshes --check-meshes` 통과 확인
-- [ ] Step 10의 실제 모델 재임포트
-- [ ] Step 11 검증 전체 재실행
-
-> **중요:** STEP 원본을 받았다는 이유로 5순위를 먼저 진행하지 않는다. mock에서 조인트와 ROS 데이터 흐름을 먼저 검증해야 실제 메시 문제와 통신 문제를 분리할 수 있다.
-
----
-
-## 담당자별 인수·요청 항목
-
-### A — CAD 담당자에게 받을 것
-
-| 항목 | 요구 조건 | Unity에서 확인할 내용 |
-|---|---|---|
-| 기종 확인 | Voron 2.4 R2 / 250 mm | 빌드 영역과 모델 크기 비교 |
-| visual STL 4개 | 계약 링크명, mm, 링크 조인트 원점 기준 | 형상, 방향, 머티리얼 배정 |
-| collision STL 4개 | 단순·볼록 형상, triangle budget 준수 | VHACD와 Articulation 안정성 |
-| Xacro 실측값 | `voron24_params.xacro`에 반영 | 홈과 스트로크 끝 위치 |
-| 측정 근거 | `measurements.md` 또는 주석 | 오프셋 오류 발생 시 추적 |
-
-### C — ROS2 담당자에게 받을 것
-
-| 항목 | 요구 조건 | Unity에서 확인할 내용 |
-|---|---|---|
-| mock URDF/Xacro | 단일 URDF, `use_meshes` 인자 지원 | mock/real 전환 가능 여부 |
-| `/joint_states` | 50Hz, 계약 조인트명, 위치 단위 m | 축 방향과 부드러운 움직임 |
-| custom msgs | 계약 §6의 3개 `.msg` | C# 생성 후 컴파일 여부 |
-| mock launch | home/sweep 패턴 지원 | Unity 단독 수식과 비교 |
-| ROS-TCP-Endpoint | ROS2, port 10000 | 연결 HUD와 재접속 |
-| 검사 결과 | contract check와 smoke test | 통합 오류의 책임 구간 분리 |
-
-### B — Unity 담당자가 제공할 것
-
-- [ ] 동일 Unity 버전에서 열리는 `unity/Voron24Twin/`
-- [ ] mock과 real 모델에 공통으로 동작하는 이름 기반 조인트 바인딩
-- [ ] 축 방향·범위 검증 화면 또는 짧은 영상
-- [ ] 연결 상태, 최신 수신 시각, 조인트 값, 노즐 좌표 진단 화면
-- [ ] 상태 UI, 압출 궤적, 카메라 및 명령 퍼블리셔
-- [ ] Unity Console 빨간 오류가 없는 통합 씬
-- [ ] 사용한 commit과 입력 URDF가 기록된 검증 보고
-
----
-
-## 단계 완료 보고 형식
-
-각 Step 완료 시 다음 형식으로 팀 채널 또는 PR에 기록한다.
-
-```text
-[Unity / Step N 완료]
-- Unity 버전:
-- 작업 브랜치 및 commit:
-- 입력 URDF: mock / real
-- ROS 연결: 미사용 / 연결됨
-- ROS IP 및 port:
-- 통과한 검증 항목:
-- 남은 오류 또는 위험:
-- A에게 필요한 입력물:
-- C에게 필요한 입력물:
-- 증빙 화면 또는 영상 경로:
-```
-
-오류를 보고할 때는 “안 됨”으로만 기록하지 않고 다음 네 항목을 포함한다.
-
-1. 사용한 URDF가 mock인지 real인지
-2. 수신한 조인트명과 실제 값
-3. Unity Hierarchy에서 문제가 발생한 링크명
-4. Unity Console의 첫 번째 빨간 오류 전문
 ---
  
 ## 산출물 요약
