@@ -52,6 +52,67 @@ bash tools/smoke_test.sh
 cd ros2_ws/src/voron24_gcode && python3 -m voron24_gcode.patterns
 ```
  
+## ROS2 - Unity 연결
+
+`/joint_states` 를 각각 독립 출력. **RViz 는 대조군**으로써 함께 실행 —
+Unity 와 비교해서 error 판단.
+
+```
+mock_publisher ──/joint_states──┬── robot_state_publisher ──/tf──▶ RViz
+                                └── ros_tcp_endpoint(:10000) ──────▶ Unity
+```
+
+### 실행
+
+터미널 A.
+
+```bash
+cd ros2_ws
+source install/setup.bash
+ros2 launch voron24_bringup mock.launch.py pattern:=sweep period:=30
+```
+
+`pattern:=sweep` 은 축을 하나씩 왕복시켜 축 매핑과 부호를 검증. 디버깅 시
+첫 선택. `period` 는 30 이상을 쓴다 — URDF 의 `vel_z` 는 0.05 라 기본값 12 로 sweep 을 돌리면 Z가 0.125 m/s로 요구 제한 속도를 초과.
+
+**launch 출력에서 주의점.**
+
+```
+[mock_publisher-2] [INFO]: mock publisher | pattern=sweep rate=50.0Hz period=30.0s
+```
+
+노드가 죽어도 launch 는 계속 살아 있으므로 겉보기엔 성공한 것처럼 보일 수 있음.
+
+이후 Unity에서 별도 설정 없이 **Play**. Console에 이 세 줄이 출력되는 지 확인.
+
+```
+[JointState] 자기충돌 해제: 콜라이더 4 개, 6 쌍
+[JointState] bound 3/3 joints under 'voron24'
+[JointState] subscribed to /joint_states
+```
+
+RViz 와 Unity 에서 갠트리가 X → Y → Z 순으로 왕복 시 성공.
+
+### 확인 (터미널 B)
+
+```bash
+cd ros2_ws && source install/setup.bash
+ros2 topic echo /joint_states --once --no-daemon   # 값이 흐르는지
+ss -ltn | grep 10000                               # 엔드포인트가 열렸는지
+```
+
+`--no-daemon`: `ros2 topic list` 가 무응답이면 노드가 아니라 데몬이 먹통인 경우 — `ros2 daemon stop`
+
+### 자주 쓰는 인자
+
+| 인자 | 기본값 | 용도 |
+|---|---|---|
+| `pattern:=` | `lissajous` | `home` / `sweep` / `square` / `lissajous` |
+| `period:=` | `12.0` | 한 주기 [s] |
+| `rviz:=false` | `true` | Unity 만 볼 때. **문제 생기면 다시 켤 것** |
+| `unity:=false` | `true` | ROS 파이프라인만 격리 |
+| `use_meshes:=true` | `false` | A 의 STL. 메시가 들어오기 전엔 쓰지 말 것 |
+
 ## 팀 규칙
  
 1. **계약 문서(00) 변경은 PR + 3인 승인.** 여기가 흔들리면 병렬 작업 붕괴
