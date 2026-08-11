@@ -1,0 +1,174 @@
+<?xml version="1.0"?>
+<!--
+  voron24.urdf.xacro
+  ==================
+  Voron 2.4 R2 / 250mm — CoreXY + 플라잉 갠트리
+
+  ★ 중요: 베드는 base_link 에 고정이다. 움직이지 않는다.
+    갠트리 전체가 Z 로 승강한다. (베드슬링어와 혼동 금지)
+
+  링크 트리 (계약 §3)
+    base_link
+    ├── z_gantry        prismatic Z
+    │   └── x_beam      prismatic Y
+    │       └── toolhead prismatic X
+    │           └── nozzle (fixed, TCP)
+    └── bed_origin (fixed) ← G-code (0,0,0)
+
+  사용법
+    # mock (박스)
+    xacro voron24.urdf.xacro use_meshes:=false > /tmp/mock.urdf
+    # real (A의 메시)
+    xacro voron24.urdf.xacro use_meshes:=true  > /tmp/real.urdf
+
+  CoreXY 벨트는 폐루프라 URDF 로 표현할 수 없다.
+  X/Y 를 독립 prismatic 으로 두고, A/B 모터 각도가 필요하면
+  voron24_gcode/corexy.py 에서 변환해 별도 토픽으로 퍼블리시한다.
+-->
+<robot xmlns:xacro="http://www.ros.org/wiki/xacro" name="voron24">
+<!--  
+  xacro:arg — 실행 시 넘겨주는 인자
+  xacro:property — 받은 인자 값을 property, 변수로써 정의.
+  xacro:include —  다른 Xacro 파일 import.
+-->
+  <xacro:arg name="use_meshes" default="false"/>
+  <xacro:property name="use_meshes" value="$(arg use_meshes)"/>
+
+  <xacro:include filename="$(find voron24_description)/urdf/voron24_params.xacro"/>
+  <xacro:include filename="$(find voron24_description)/urdf/voron24_macros.xacro"/>
+
+  <!-- ==========================================================
+       base_link — 프레임 + 패널 + 베드 + 전장 + Z모터
+       ========================================================== -->
+<!--  
+  xacro:if & xacro:unless — 조건문
+  xacro:property — 받은 인자 값을 property, 변수로써 정의.
+  xacro:include —  다른 Xacro 파일 import.
+-->
+  <link name="base_link">
+    <xacro:if value="${use_meshes}">
+      <visual>
+        <geometry>
+          <mesh filename="${MESH_PKG}/visual/base_link.stl" scale="${MESH_SCALE}"/>
+        </geometry>
+        <material name="frame"><color rgba="0.62 0.64 0.67 1.0"/></material>
+      </visual>
+      <collision>
+        <geometry>
+          <mesh filename="${MESH_PKG}/collision/base_link.stl" scale="${MESH_SCALE}"/>
+        </geometry>
+      </collision>
+    </xacro:if>
+    <xacro:unless value="${use_meshes}">
+      <!-- 프레임 외곽 (반투명) -->
+      <visual>
+        <origin xyz="0 0 ${frame_z/2}"/>
+        <geometry><box size="${frame_x} ${frame_y} ${frame_z}"/></geometry>
+        <material name="frame"><color rgba="0.60 0.62 0.65 0.20"/></material>
+      </visual>
+      <!-- 베드 — 고정! -->
+      <visual>
+        <origin xyz="0 0 ${bed_z - bed_plate_z/2}"/>
+        <geometry><box size="${bed_plate_x} ${bed_plate_y} ${bed_plate_z}"/></geometry>
+        <material name="bed"><color rgba="0.13 0.13 0.16 1.0"/></material>
+      </visual>
+      <collision>
+        <origin xyz="0 0 ${frame_z/2}"/>
+        <geometry><box size="${frame_x} ${frame_y} ${frame_z}"/></geometry>
+      </collision>
+    </xacro:unless>
+    <xacro:box_inertia m="${m_base}" x="${frame_x}" y="${frame_y}" z="${frame_z}">
+      <origin xyz="0 0 ${frame_z*0.3}"/>
+    </xacro:box_inertia>
+  </link>
+
+  <!-- ==========================================================
+       z_gantry — 갠트리 전체가 Z 로 승강 (플라잉 갠트리)
+       ========================================================== -->
+<!--
+  xacro:link_geometry & xacro:box_inertia — voron24_description/urdf/voron24_macros.xacro에서 정의
+-->
+  <link name="z_gantry">
+    <xacro:link_geometry name="z_gantry" use_meshes="${use_meshes}"
+                         bx="${gantry_x}" by="${gantry_y}" bz="${gantry_z}"
+                         color_name="voron_red" color_rgba="0.85 0.27 0.20 1.0"/>
+    <xacro:box_inertia m="${m_gantry}" x="${gantry_x}" y="${gantry_y}" z="${gantry_z}">
+      <origin xyz="0 0 0"/>
+    </xacro:box_inertia>
+  </link>
+
+  <joint name="joint_z" type="prismatic">
+    <parent link="base_link"/>
+    <child  link="z_gantry"/>
+    <origin xyz="${jz_x} ${jz_y} ${jz_z}" rpy="0 0 0"/>
+    <axis xyz="0 0 1"/>
+    <limit lower="0.0" upper="${stroke_z}" effort="${eff_z}" velocity="${vel_z}"/>
+    <dynamics damping="${damp_z}" friction="${fric_z}"/>
+  </joint>
+
+  <!-- ==========================================================
+       x_beam — X축 익스트루전이 Y 로 이동
+       ========================================================== -->
+  <link name="x_beam">
+    <xacro:link_geometry name="x_beam" use_meshes="${use_meshes}"
+                         bx="${beam_x}" by="${beam_y}" bz="${beam_z}"
+                         color_name="voron_blue" color_rgba="0.20 0.50 0.85 1.0"/>
+    <xacro:box_inertia m="${m_beam}" x="${beam_x}" y="${beam_y}" z="${beam_z}">
+      <origin xyz="0 0 0"/>
+    </xacro:box_inertia>
+  </link>
+
+  <joint name="joint_y" type="prismatic">
+    <parent link="z_gantry"/>
+    <child  link="x_beam"/>
+    <origin xyz="${jy_x} ${jy_y} ${jy_z}" rpy="0 0 0"/>
+    <axis xyz="0 1 0"/>
+    <limit lower="0.0" upper="${stroke_y}" effort="${eff_xy}" velocity="${vel_xy}"/>
+    <dynamics damping="${damp_xy}" friction="${fric_xy}"/>
+  </joint>
+
+  <!-- ==========================================================
+       toolhead — Stealthburner + Clockwork2, X 로 이동
+       ========================================================== -->
+  <link name="toolhead">
+    <xacro:link_geometry name="toolhead" use_meshes="${use_meshes}"
+                         bx="${th_x}" by="${th_y}" bz="${th_z}"
+                         ox="0" oy="0.010" oz="${-th_z/2 + 0.015}"
+                         color_name="toolhead_white" color_rgba="0.92 0.92 0.94 1.0"/>
+    <xacro:box_inertia m="${m_toolhead}" x="${th_x}" y="${th_y}" z="${th_z}">
+      <origin xyz="0 0.010 ${-th_z/2 + 0.015}"/>
+    </xacro:box_inertia>
+  </link>
+
+  <joint name="joint_x" type="prismatic">
+    <parent link="x_beam"/>
+    <child  link="toolhead"/>
+    <origin xyz="${jx_x} ${jx_y} ${jx_z}" rpy="0 0 0"/>
+    <axis xyz="1 0 0"/>
+    <limit lower="0.0" upper="${stroke_x}" effort="${eff_xy}" velocity="${vel_xy}"/>
+    <dynamics damping="${damp_xy}" friction="${fric_xy}"/>
+  </joint>
+
+  <!-- ==========================================================
+       nozzle — TCP. 형상 없음, 프레임만.
+       Unity/RViz 에서 bed_origin 기준 노즐 위치를 TF 로 조회한다.
+       ========================================================== -->
+  <link name="nozzle"/>
+  <joint name="joint_nozzle" type="fixed">
+    <parent link="toolhead"/>
+    <child  link="nozzle"/>
+    <origin xyz="${noz_x} ${noz_y} ${noz_z}" rpy="0 0 0"/>
+  </joint>
+
+  <!-- ==========================================================
+       bed_origin — G-code (0,0,0). base_link 에 고정.
+       ★ 베드가 움직이지 않으므로 z_gantry 가 아니라 base_link 의 자식이다.
+       ========================================================== -->
+  <link name="bed_origin"/>
+  <joint name="joint_bed_origin" type="fixed">
+    <parent link="base_link"/>
+    <child  link="bed_origin"/>
+    <origin xyz="${bed_x} ${bed_y} ${bed_z}" rpy="0 0 0"/>
+  </joint>
+
+</robot>

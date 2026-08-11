@@ -1,5 +1,9 @@
 fileFormatVersion: 2
+<<<<<<< HEAD
 guid: fa59846dd5b134c43b7651d331ac6fdd
+=======
+guid: 525ff53e3079d184ab1eabeb6ea828a8
+>>>>>>> origin/feat/ros2
 MonoImporter:
   externalObjects: {}
   serializedVersion: 2

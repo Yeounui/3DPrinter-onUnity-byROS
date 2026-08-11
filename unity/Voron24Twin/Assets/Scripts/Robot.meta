@@ -1,5 +1,9 @@
 fileFormatVersion: 2
+<<<<<<< HEAD
 guid: f6564e0c964591f46bfd5094eff6c764
+=======
+guid: e5be59fc7643b16408687d5a68a8686e
+>>>>>>> origin/feat/ros2
 folderAsset: yes
 DefaultImporter:
   externalObjects: {}
