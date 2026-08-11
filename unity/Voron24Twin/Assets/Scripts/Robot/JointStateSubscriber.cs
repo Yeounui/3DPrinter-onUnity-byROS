@@ -1,6 +1,7 @@
 using System.Collections.Generic;
 using UnityEngine;
 using Unity.Robotics.ROSTCPConnector;
+using Unity.Robotics.UrdfImporter;
 using RosJointState = RosMessageTypes.Sensor.JointStateMsg;
 
 namespace Voron24.Robot
@@ -13,8 +14,9 @@ namespace Voron24.Robot
     ///   Unity AB : prismatic = m,      revolute = degree
     ///   -> revolute 만 rad2deg 변환한다. prismatic 은 그대로.
     ///
-    /// 조인트는 이름으로 자동 탐색한다. URDF-Importer 가 링크명으로 GameObject 를
-    /// 만들기 때문에, 메시 교체 후 URDF 를 재임포트해도 Inspector 재연결이 필요 없다.
+    /// 조인트는 이름으로 자동 탐색한다. URDF-Importer 는 GameObject 를 **링크명**으로
+    /// 만들고 조인트명은 UrdfJoint.jointName 에 보관하므로, GameObject 이름 -> UrdfJoint
+    /// 순서로 찾는다. 덕분에 메시 교체 후 재임포트해도 Inspector 재연결이 필요 없다.
     /// </summary>
     public class JointStateSubscriber : MonoBehaviour
     {
@@ -28,6 +30,27 @@ namespace Voron24.Robot
         [Tooltip("계약 section 3 의 조인트 이름. URDF 와 정확히 일치해야 한다.")]
         [SerializeField]
         string[] jointNames = { "joint_x", "joint_y", "joint_z" };
+
+        [System.Serializable]
+        public struct DriveGain
+        {
+            public string joint;
+            public float stiffness;
+            public float damping;
+            public float forceLimit;
+        }
+
+        [Header("Drive")]
+        [Tooltip("xDrive 게인. URDF-Importer 는 stiffness 를 0 으로 임포트하므로 " +
+                 "여기서 넣지 않으면 target 을 줘도 조인트가 따라가지 않는다. " +
+                 "값의 출처는 docs/02_unity_workflow.md '드라이브 게인 튜닝'.")]
+        [SerializeField]
+        DriveGain[] driveGains =
+        {
+            new DriveGain { joint = "joint_x", stiffness = 100000f, damping =  3000f, forceLimit =  200f },
+            new DriveGain { joint = "joint_y", stiffness = 150000f, damping =  5000f, forceLimit =  300f },
+            new DriveGain { joint = "joint_z", stiffness = 300000f, damping = 20000f, forceLimit = 1000f },
+        };
 
         [Header("Mode")]
         [Tooltip("체크하면 물리를 우회하고 Transform 을 직접 갱신한다. " +
@@ -84,11 +107,13 @@ namespace Voron24.Robot
             foreach (var n in jointNames)
             {
                 var j = new Joint { name = n };
-                var tf = FindDeep(robotRoot, n);
+                // GameObject 이름이 우선. URDF-Importer 는 링크명으로 만들므로
+                // 대개 UrdfJoint.jointName 쪽에서 걸린다.
+                var tf = FindDeep(robotRoot, n) ?? FindByUrdfJointName(robotRoot, n);
 
                 if (tf == null)
                 {
-                    Debug.LogError($"[JointState] '{n}' 이름의 GameObject 를 찾을 수 없습니다. " +
+                    Debug.LogError($"[JointState] '{n}' 조인트를 찾을 수 없습니다. " +
                                    $"URDF 의 조인트 이름과 계약 section 3 을 대조하세요.");
                 }
                 else
@@ -106,6 +131,7 @@ namespace Voron24.Robot
                         j.restPos = tf.localPosition;
                         j.localAxis = AxisFromDrive(j.body);
                         j.bound = true;
+                        ApplyDriveGain(j.body, n);
 
                         if (Mathf.Approximately(j.body.mass, 0f))
                         {
@@ -124,6 +150,38 @@ namespace Voron24.Robot
                 int ok = _joints.FindAll(x => x.bound).Count;
                 Debug.Log($"[JointState] bound {ok}/{_joints.Count} joints under '{robotRoot.name}'");
             }
+        }
+
+        /// <summary>
+        /// URDF-Importer 는 GameObject 를 링크명으로 만들고 계약상의 조인트 이름은
+        /// UrdfJoint.jointName 에 남긴다. 그 이름으로 해당 링크의 Transform 을 찾는다.
+        /// </summary>
+        static Transform FindByUrdfJointName(Transform root, string jointName)
+        {
+            foreach (var uj in root.GetComponentsInChildren<UrdfJoint>(true))
+                if (uj.jointName == jointName) return uj.transform;
+            return null;
+        }
+
+        /// <summary>
+        /// xDrive 게인 주입. URDF 에는 stiffness/damping 개념이 없어 임포트 직후 0 이고,
+        /// 그 상태로는 target 을 써도 힘이 나오지 않는다. 재임포트해도 코드가 다시 채운다.
+        /// </summary>
+        void ApplyDriveGain(ArticulationBody body, string jointName)
+        {
+            var g = System.Array.Find(driveGains, x => x.joint == jointName);
+            if (g.stiffness <= 0f)
+            {
+                Debug.LogWarning($"[JointState] '{jointName}' 의 드라이브 게인이 없습니다. " +
+                                 $"stiffness 0 이면 조인트가 목표를 따라가지 않습니다.");
+                return;
+            }
+
+            var d = body.xDrive;
+            d.stiffness  = g.stiffness;
+            d.damping    = g.damping;
+            d.forceLimit = g.forceLimit;
+            body.xDrive = d;
         }
 
         static Vector3 AxisFromDrive(ArticulationBody b)
