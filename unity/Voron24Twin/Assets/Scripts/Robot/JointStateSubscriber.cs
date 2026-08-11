@@ -107,8 +107,9 @@ namespace Voron24.Robot
             foreach (var n in jointNames)
             {
                 var j = new Joint { name = n };
-                // GameObject 이름이 우선. URDF-Importer 는 링크명으로 만들므로
-                // 대개 UrdfJoint.jointName 쪽에서 걸린다.
+                // GameObject 이름을 먼저 본다. URDF-Importer 로 임포트한 로봇은 링크명이
+                // 붙어 있어 여기서 실패하고 UrdfJoint.jointName 쪽에서 걸린다.
+                // 손으로 만든 리그처럼 GameObject 를 조인트명으로 지은 경우를 위해 순서 유지.
                 var tf = FindDeep(robotRoot, n) ?? FindByUrdfJointName(robotRoot, n);
 
                 if (tf == null)
@@ -153,11 +154,31 @@ namespace Voron24.Robot
         }
 
         /// <summary>
-        /// URDF-Importer 는 GameObject 를 링크명으로 만들고 계약상의 조인트 이름은
-        /// UrdfJoint.jointName 에 남긴다. 그 이름으로 해당 링크의 Transform 을 찾는다.
+        /// 계약 section 3 의 조인트 이름으로 해당 조인트가 구동하는 링크를 찾는다.
+        ///
+        /// URDF 는 링크와 조인트를 별개 엔티티로 두지만, Unity 의 ArticulationBody 는
+        /// "강체 + 그것을 부모에 매다는 조인트" 를 하나로 합친다. 조인트가 독립 객체로
+        /// 존재하지 않고 **자식 링크의 속성**이다. 그래서 URDF-Importer 는 GameObject 를
+        /// 링크명으로 만들고, 갈 곳이 없어진 조인트명은 UrdfJoint.jointName 에 보관한다.
+        ///
+        /// 규칙: 조인트는 자기 **자식 링크**의 GameObject 에 얹힌다.
+        ///
+        ///   joint_z -> z_gantry   (base_link 를 부모로)
+        ///   joint_y -> x_beam     (z_gantry  를 부모로)
+        ///   joint_x -> toolhead   (x_beam    를 부모로)
+        ///
+        /// 이름이 엇갈려 보이는 것은 CoreXY 구조 그대로다. X 빔이 Y 축을 따라 움직이고,
+        /// 툴헤드가 그 빔 위에서 X 축을 따라 움직인다.
+        ///
+        /// 주의: jointNames 를 링크명으로 바꿔 해결하려 하지 말 것. 같은 문자열이
+        /// _byName 의 키로도 쓰이는데 그쪽은 /joint_states 의 msg.name("joint_x") 과
+        /// 대조된다. 키는 계약상 조인트명으로 고정하고 탐색 단계에서만 링크로 번역한다.
+        ///
+        /// 부수 효과: 링크명이 바뀌어도 조인트명만 계약과 맞으면 계속 바인딩된다.
         /// </summary>
         static Transform FindByUrdfJointName(Transform root, string jointName)
         {
+            // UrdfJoint 는 추상 클래스 — Prismatic/Revolute/Fixed 를 모두 잡는다.
             foreach (var uj in root.GetComponentsInChildren<UrdfJoint>(true))
                 if (uj.jointName == jointName) return uj.transform;
             return null;
