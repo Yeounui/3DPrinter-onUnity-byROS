@@ -52,6 +52,12 @@ namespace Voron24.Robot
             new DriveGain { joint = "joint_z", stiffness = 300000f, damping = 20000f, forceLimit = 1000f },
         };
 
+        [Header("Collision")]
+        [Tooltip("로봇 내부 링크끼리의 충돌을 끈다. URDF 의 collision 박스는 서로 " +
+                 "파고들어 있어서 켜 두면 조인트가 리밋에 물려 아예 움직이지 않는다. " +
+                 "이 트윈은 /joint_states 를 그대로 재생하는 것이 목적이라 자기충돌은 필요 없다.")]
+        [SerializeField] bool disableSelfCollision = true;
+
         [Header("Mode")]
         [Tooltip("체크하면 물리를 우회하고 Transform 을 직접 갱신한다. " +
                  "데모에서 물리가 불안정할 때의 안전장치.")]
@@ -146,11 +152,42 @@ namespace Voron24.Robot
                 _byName[n] = j;
             }
 
+            if (disableSelfCollision) DisableSelfCollision();
+
             if (verbose)
             {
                 int ok = _joints.FindAll(x => x.bound).Count;
                 Debug.Log($"[JointState] bound {ok}/{_joints.Count} joints under '{robotRoot.name}'");
             }
+        }
+
+        /// <summary>
+        /// 로봇 내부 링크 콜라이더끼리의 충돌을 전부 끈다.
+        ///
+        /// 왜 필요한가: URDF 의 collision 지오메트리는 서로 겹치도록 그려져 있다.
+        /// base_link 의 박스가 기계 전체 부피를 감싸고 그 안에 z_gantry/x_beam/toolhead
+        /// 가 들어앉는 식이다. ArticulationBody 는 **부모-자식으로 인접한 링크끼리만**
+        /// 자동으로 충돌을 끄므로 base_link ↔ x_beam 처럼 한 다리 건넌 쌍은 그대로
+        /// 충돌한다. 완전히 파묻힌 상태라 PhysX 가 밀어내기(depenetration)를 계속 걸고,
+        /// 그 결과 조인트가 lower 리밋 0 에 물려 target 을 줘도 위치가 0 에서 안 움직인다.
+        /// 증상이 "bound 3/3 인데 로봇이 가만히 있다" 로 나오기 때문에 바인딩 실패나
+        /// 게인 0 과 구분이 잘 안 된다 — jointPosition 이 0 고정인데 jointVelocity 만
+        /// 0 이 아니면 이쪽을 의심할 것.
+        ///
+        /// 끄는 게 맞는 이유: 이 트윈은 /joint_states 를 그대로 재생하는 시각화다.
+        /// 자기충돌로 막아야 할 대상이 없고, 충돌 응답은 오히려 원본 궤적을 왜곡한다.
+        /// (외부 물체와의 충돌은 살아 있다 — 링크 쌍만 끄기 때문.)
+        /// </summary>
+        void DisableSelfCollision()
+        {
+            var cols = robotRoot.GetComponentsInChildren<Collider>(true);
+            for (int i = 0; i < cols.Length; i++)
+                for (int k = i + 1; k < cols.Length; k++)
+                    Physics.IgnoreCollision(cols[i], cols[k], true);
+
+            if (verbose && cols.Length > 1)
+                Debug.Log($"[JointState] 자기충돌 해제: 콜라이더 {cols.Length} 개, " +
+                          $"{cols.Length * (cols.Length - 1) / 2} 쌍");
         }
 
         /// <summary>
