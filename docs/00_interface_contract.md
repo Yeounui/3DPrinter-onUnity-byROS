@@ -259,9 +259,13 @@ string    payload
 │   ├── voron24_msgs/
 │   ├── voron24_gcode/
 │   └── voron24_bringup/
-└── unity/Voron24Twin/
+└── unity/Voron24Twin/          B
     ├── README.md 
-    ├── Assets/                 모델 산출물 메모
+    ├── Assets/
+    │   ├── Scenes/
+    │   │   └── Voron24Twin.unity
+    │   ├── Scripts/Robot/           JointStateSubscriber 등
+    │   └── urdf/                    URDF-Importer 입력 사본
     ├── Packages/
     └── ProjectSettings/
 ```
@@ -411,3 +415,4 @@ Voron 2.4 CAD는 **VoronDesign/Voron-2** 레포 배포, **GPLv3**.
 | 2026-08-04 | 초안 | A/B/C |
 | 2026-08-05 | URDF 단일 파일 구조로 통합, `voron24_params.xacro` 도입, 소유권 규칙 개정 (§4) | A/B/C |
 | 2026-08-05 | `contract_check.py` / `smoke_test.sh` 도입 (§9) | A/B/C |
+| 2026-08-11 | §7 디렉터리 트리를 실제 구조에 맞춤 (`unity/` 하위) | B |
