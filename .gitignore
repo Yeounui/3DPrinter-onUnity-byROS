@@ -16,6 +16,7 @@ unity/Voron24Twin/[Ll]ogs/
 unity/Voron24Twin/[Uu]serSettings/
 unity/Voron24Twin/[Mm]emoryCaptures/
 unity/Voron24Twin/[Rr]ecordings/
+unity/Voron24Twin/.vscode/
 *.csproj
 *.unityproj
 *.sln
@@ -36,7 +37,11 @@ unity/Voron24Twin/[Rr]ecordings/
 # ---- OS ----
 .DS_Store
 Thumbs.db
+# Windows 가 NTFS 대체 스트림으로 남기는 다운로드 출처 표식 (WSL 에서 파일로 보인다)
+*:Zone.Identifier
+*:Zone.Identifier.meta
 
 
 CLAUDE.md
 ./project_init.sh
+.mcp.json

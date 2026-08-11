@@ -78,8 +78,13 @@ def generate_launch_description():
              name='mock_publisher', output='screen',
              parameters=[{
                  'pattern': pattern,
-                 'rate': rate,
-                 'period': period,
+                 # value_type=float 을 반드시 붙일 것. 안 붙이면 launch 인자 문자열이
+                 # 리터럴로 파싱돼 period:=30 은 INTEGER 가 되고, 노드가
+                 # declare_parameter('period', 12.0) 로 DOUBLE 을 기대하므로
+                 # InvalidParameterTypeException 으로 죽는다. period:=30.0 처럼
+                 # 소수점을 찍어야만 뜨는 건 사용자가 외울 일이 아니다.
+                 'rate': ParameterValue(rate, value_type=float),
+                 'period': ParameterValue(period, value_type=float),
              }]),
 
         Node(package='ros_tcp_endpoint', executable='default_server_endpoint',
