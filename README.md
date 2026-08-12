@@ -103,6 +103,102 @@ ss -ltn | grep 10000                               # 엔드포인트가 열렸�
 
 `--no-daemon`: `ros2 topic list` 가 무응답이면 노드가 아니라 데몬이 먹통인 경우 — `ros2 daemon stop`
 
+### 통합 실행: Unity → RViz → echo 메시지 대조
+
+목적: 하나의 mock publisher가 만든 `/joint_states`를 Unity, RViz, 터미널 echo에서
+차례대로 검증한다. 세 화면이 같은 메시지를 보는지 확인하는 절차이며, 각 단계가
+통과해야 다음 단계로 진행한다.
+
+**사전 조건**
+
+- ROS 2 배포판은 이 환경의 `jazzy`를 사용한다.
+- Unity 프로젝트는 Windows 로컬 폴더에서 연다. 예: `C:\Users\user\Desktop\ksy\Voron24Twin`
+- Unity `Robotics > ROS Settings`: Protocol=`ROS 2`, IP=`127.0.0.1`, Port=`10000`.
+- 이전 launch가 남아 있으면 해당 터미널에서 `Ctrl+C`로 먼저 종료한다.
+
+#### 1. ROS + RViz를 시작한다 — 터미널 A
+
+```bash
+cd ~/3DPrinter-onUnity-byROS/ros2_ws
+source /opt/ros/jazzy/setup.bash
+source install/setup.bash
+ros2 launch voron24_bringup mock.launch.py pattern:=sweep period:=30.0
+```
+
+이 명령은 아래를 한 번에 시작한다.
+
+```text
+mock_publisher           -> /joint_states (50 Hz)
+robot_state_publisher    -> /tf
+ros_tcp_endpoint         -> TCP 0.0.0.0:10000
+rviz2                    -> RobotModel 표시
+```
+
+터미널 A에서 다음 두 로그가 나온 뒤 계속 유지되어야 한다. `mock_publisher`가 죽으면
+launch 창은 남아 있어도 Unity와 RViz는 움직이지 않는다.
+
+```text
+mock publisher | pattern=sweep rate=50.0Hz period=30.0s
+Starting server on 0.0.0.0:10000
+```
+
+RViz가 열리면 갠트리가 **X → Y → Z** 순으로 한 축씩 왕복하는지 본다. 이 단계에서
+움직이지 않으면 Unity를 열지 말고 터미널 A의 `mock_publisher` 오류부터 해결한다.
+
+#### 2. 원본 ROS 메시지를 확인한다 — 터미널 B
+
+```bash
+cd ~/3DPrinter-onUnity-byROS/ros2_ws
+source /opt/ros/jazzy/setup.bash
+source install/setup.bash
+ros2 topic echo /joint_states --once --no-daemon
+```
+
+아래 구조가 출력되어야 한다. `position`은 sweep 단계에 따라 변하므로 숫자는 달라도 된다.
+
+```yaml
+name:
+- joint_x
+- joint_y
+- joint_z
+position: [<x>, <y>, <z>]
+```
+
+출력되지 않으면 ROS publisher 문제다. 터미널 A에서 `mock_publisher`가 살아 있는지 확인하고,
+필요하면 A를 `Ctrl+C`로 종료한 뒤 1단계 명령을 다시 실행한다.
+
+#### 3. Unity를 연결한다 — Windows Unity
+
+1. `Voron24Twin` 프로젝트를 열고 Console의 기존 메시지를 `Clear`한다.
+2. **Play**를 누른다.
+3. Game 뷰에 `ROS: CONNECTED`와 IP `127.0.0.1:10000`이 표시되는지 확인한다.
+4. Unity 모델도 RViz와 동일하게 **X → Y → Z** 순으로 움직이는지 확인한다.
+
+Unity Console에는 최소한 다음 로그가 보여야 한다.
+
+```text
+[JointState] bound 3/3 joints under 'voron24'
+[JointState] subscribed to /joint_states
+[JointState] first message: names=[joint_x, joint_y, joint_z] ...
+```
+
+#### 4. 세 출력의 결과를 대조한다
+
+| 관찰 결과 | 판정 / 다음 조치 |
+|---|---|
+| echo 없음, RViz/Unity 정지 | mock publisher가 종료됨. 터미널 A 오류 확인 |
+| echo 있음, RViz 정지 | `robot_state_publisher` 또는 URDF/조인트 이름 문제 |
+| echo와 RViz 정상, Unity `DISCONNECTED` | Unity ROS Settings의 ROS 2·`127.0.0.1`·`10000` 확인 |
+| echo와 RViz 정상, Unity만 축/방향 다름 | `JointStateSubscriber`의 링크 매핑 또는 축 부호 확인 |
+| 세 곳 모두 X → Y → Z로 이동 | ROS → RViz → TCP → Unity 통합 성공 |
+
+Windows PowerShell에서 `Test-NetConnection 127.0.0.1 -Port 10000`가 `True`라면,
+Windows Unity → WSL ROS 연결에는 WSL mirrored 모드가 필요 없다.
+
+#### 종료
+
+Unity에서 Play를 멈춘 뒤 터미널 A에서 `Ctrl+C`를 누른다. 다음 실행 전에 이전 launch를
+겹쳐 실행하지 않는다. 같은 이름의 endpoint가 중복되면 로그와 연결 상태 판단이 어려워진다.
 ### 자주 쓰는 인자
 
 | 인자 | 기본값 | 용도 |
