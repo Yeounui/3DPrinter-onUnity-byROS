@@ -139,11 +139,6 @@ class MockPublisher(Node):
         s = PrinterStatus()
         s.header.stamp = self.get_clock().now().to_msg()
         s.state = 'printing' if self.pattern != 'home' else 'idle'
-        s.nozzle_temp = 219.4
-        s.nozzle_target = 220.0
-        s.bed_temp = 59.8
-        s.bed_target = 60.0
-        s.chamber_temp = 41.2
         s.progress = float((self.t / 60.0) % 1.0)
         s.current_layer = int(self.layer)
         s.total_layers = 200
