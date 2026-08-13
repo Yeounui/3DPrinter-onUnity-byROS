@@ -2,6 +2,7 @@
 ros2_ws/build/
 ros2_ws/install/
 ros2_ws/log/
+# 외부 소스 — 트래킹하지 않고 ros2_ws/voron24.repos 로 vcs import 한다
 ros2_ws/src/ROS-TCP-Endpoint/
 __pycache__/
 *.pyc
@@ -45,3 +46,4 @@ Thumbs.db
 CLAUDE.md
 ./project_init.sh
 .mcp.json
+_workspace

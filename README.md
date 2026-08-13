@@ -26,7 +26,9 @@ STEP ──▶ 링크별 메시 ──▶ URDF ──▶ Unity (ArticulationBody
 git clone <repo> && cd 3DPrinter-onUnity-byROS
 git lfs install && git lfs pull
  
-cd ros2_ws && colcon build --symlink-install && source install/setup.bash
+cd ros2_ws
+vcs import src < voron24.repos          # 외부 의존(ROS-TCP-Endpoint) 가져오기
+colcon build --symlink-install && source install/setup.bash
 ros2 launch voron24_bringup mock.launch.py
 ```
  

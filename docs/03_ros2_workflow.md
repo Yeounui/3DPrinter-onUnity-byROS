@@ -297,9 +297,9 @@ ros2 run voron24_gcode mock_publisher --ros-args -p rate:=100.0 -p period:=8.0
 ## Step 5 — Unity 브릿지 (W1 Day 2)
  
 ```bash
-cd ~/voron24-digital-twin/ros2_ws/src
-git clone -b main-ros2 https://github.com/Unity-Technologies/ROS-TCP-Endpoint.git
-cd .. && colcon build --packages-select ros_tcp_endpoint && source install/setup.bash
+cd ros2_ws
+vcs import src < voron24.repos   # ROS-TCP-Endpoint 를 태그(ROS2v0.7.0)로 고정해 가져온다
+colcon build --packages-select ros_tcp_endpoint && source install/setup.bash
 ```
  
 `voron24_bringup/launch/mock.launch.py`:

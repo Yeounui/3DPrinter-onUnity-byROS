@@ -14,7 +14,12 @@
   <exec_depend>voron24_description</exec_depend>
   <exec_depend>voron24_gcode</exec_depend>
   <exec_depend>voron24_msgs</exec_depend>
-  <!-- ROS-TCP-Endpoint 는 별도 clone. 없으면 mock.launch.py 의 unity:=false 로 실행 -->
+  <!-- ros_tcp_endpoint is not included in rosdistro.
+       Do 'vcs import src < ros2_ws/voron24.repos' to bring the repo.
+       To skip during rosdep install,
+       execute 'rosdep install from-paths src ignore-src -r -y skip-keys ros_tcp_endpoint'.
+       & execute mock.launch.py with the argument unity:=false. -->
+  <exec_depend>ros_tcp_endpoint</exec_depend>
 
   <export><build_type>ament_python</build_type></export>
 </package>
