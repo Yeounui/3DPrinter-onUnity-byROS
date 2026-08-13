@@ -47,3 +47,4 @@ CLAUDE.md
 ./project_init.sh
 .mcp.json
 _workspace
+.claude/
