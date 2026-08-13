@@ -1,7 +1,7 @@
 """
 patterns.py
 ===========
-mock 퍼블리셔의 궤적 생성 로직. rclpy 의존성이 없어서 단독 테스트가 가능하다.
+mock 퍼블리셔의 궤적 생성 로직. rclpy 의존성이 없음.
 
     python3 -m voron24_gcode.patterns        # 자체 검증 실행
 
@@ -9,7 +9,7 @@ mock 퍼블리셔의 궤적 생성 로직. rclpy 의존성이 없어서 단독 �
 """
 import math
 
-PATTERNS = ('home', 'sweep', 'square', 'lissajous')
+PATTERNS = ('home', 'sweep', 'square', 'lissajous', 'none')
 
 
 class PatternGenerator:
@@ -22,7 +22,7 @@ class PatternGenerator:
 
     # ------------------------------------------------------------------
     def __call__(self, pattern, t):
-        """-> (x, y, z, extruding). 리밋 클램프까지 마친 값."""
+        """-> (x, y, z, extruding(bool)). 리밋 클램프까지 마친 값."""
         fn = getattr(self, '_' + pattern, None)
         if fn is None:
             raise ValueError(f'unknown pattern: {pattern} (choose from {PATTERNS})')
@@ -37,6 +37,16 @@ class PatternGenerator:
     # ------------------------------------------------------------------
     def _home(self, t):
         """전부 0. 홈 자세에서 노즐이 베드 좌전방 코너에 있는지 확인용."""
+        return 0.0, 0.0, 0.0, False
+
+    def _none(self, t):
+        """원점 고정, 압출 없음. 동작 없이 초기화만.
+
+        `_home` 과 반환값은 같지만 다른 의도에 의해 작성되었으므로 통합하지 말 것.
+        `_home` 은 "홈 위치 표시"를 위해서 `_none` 은 "이동 없이 초기화".
+        sim.launch.py 에서 값 소스가 manual_publisher / gcode_player_node 로
+        넘어갈 때 mock 퍼블리셔를 무해하게 만드는 용도다 (04b 선행 커밋).
+        """
         return 0.0, 0.0, 0.0, False
 
     def _sweep(self, t):

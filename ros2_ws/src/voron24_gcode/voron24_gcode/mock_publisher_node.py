@@ -17,6 +17,7 @@ W1 게이트: 이 노드를 띄웠을 때 RViz 와 Unity 에서 동시에 같은
     sweep      한 축씩 0 -> stroke -> 0. 축 매핑과 부호 검증용. ★ 처음엔 이걸로.
     square     베드 외곽 사각형. 스트로크 리밋과 좌표 원점 확인용.
     home       전부 0 고정. 홈 자세에서 노즐이 베드 좌전방 코너에 있는지 확인.
+    none       원점 고정, 압출 없음. 값 소스가 이 노드가 아닐 때 (sim.launch.py).
 
 사용:
     ros2 run voron24_gcode mock_publisher
