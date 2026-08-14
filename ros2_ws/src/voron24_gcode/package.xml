@@ -13,6 +13,11 @@
   <depend>std_msgs</depend>
   <depend>voron24_msgs</depend>
 
+  <!-- motion.py 가 축별 최대속도를 voron24_params.xacro 에서 파싱.
+       share 디렉터리의 파일을 경로로 찾음, 없으면 fallback 으로 soft 의존.
+       -->
+  <exec_depend>voron24_description</exec_depend>
+
   <test_depend>ament_copyright</test_depend>
   <test_depend>ament_flake8</test_depend>
   <test_depend>ament_pep257</test_depend>

@@ -1,7 +1,7 @@
 """
 patterns.py
 ===========
-mock 퍼블리셔의 궤적 생성 로직. rclpy 의존성이 없음.
+mock 퍼블리셔의 궤적 생성 로직.
 
     python3 -m voron24_gcode.patterns        # 자체 검증 실행
 
