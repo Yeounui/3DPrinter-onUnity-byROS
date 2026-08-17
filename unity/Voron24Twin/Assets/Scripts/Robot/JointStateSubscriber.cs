@@ -170,11 +170,9 @@ namespace Voron24.Robot
 
             if (jointNames.Length != linkNames.Length)
             {
-                var j = new Joint { name = n };
-                // GameObject 이름을 먼저 본다. URDF-Importer 로 임포트한 로봇은 링크명이
-                // 붙어 있어 여기서 실패하고 UrdfJoint.jointName 쪽에서 걸린다.
-                // 손으로 만든 리그처럼 GameObject 를 조인트명으로 지은 경우를 위해 순서 유지.
-                var tf = FindDeep(robotRoot, n) ?? FindByUrdfJointName(robotRoot, n);
+                Debug.LogError(
+                    "[JointState] Joint Names 와 Link Names 의 개수가 다릅니다. " +
+                    $"jointNames={jointNames.Length}, linkNames={linkNames.Length}");
 
                 return;
             }
@@ -199,8 +197,9 @@ namespace Voron24.Robot
 
                 if (linkTransform == null)
                 {
-                    Debug.LogError($"[JointState] '{n}' 조인트를 찾을 수 없습니다. " +
-                                   $"URDF 의 조인트 이름과 계약 section 3 을 대조하세요.");
+                    Debug.LogError($"[JointState] '{linkName}' 링크를 찾을 수 없습니다 " +
+                                   $"(조인트 '{jointName}'). " +
+                                   $"URDF 의 링크 이름과 계약 section 3 을 대조하세요.");
                 }
                 else
                 {
@@ -217,11 +216,11 @@ namespace Voron24.Robot
                     }
                     else
                     {
-                        j.isRevolute = j.body.jointType == ArticulationJointType.RevoluteJoint;
-                        j.restPos = tf.localPosition;
-                        j.localAxis = AxisFromDrive(j.body);
-                        j.bound = true;
-                        ApplyDriveGain(j.body, n);
+                        joint.isRevolute =
+                            joint.body.jointType ==
+                            ArticulationJointType.RevoluteJoint;
+
+                        ApplyDriveGain(joint.body, jointName);
 
                         joint.restPos =
                             linkTransform.localPosition;
@@ -347,7 +346,7 @@ namespace Voron24.Robot
 
         static Vector3 AxisFromDrive(ArticulationBody b)
         {
-            return body.anchorRotation * Vector3.right;
+            return b.anchorRotation * Vector3.right;
         }
 
         /// <summary>
