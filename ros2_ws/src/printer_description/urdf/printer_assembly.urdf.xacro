@@ -1,0 +1,11 @@
+<?xml version="1.0"?>
+<robot xmlns:xacro="http://www.ros.org/wiki/xacro" name="base_link_demo">
+  <xacro:include filename="printer_common.urdf.xacro"/>
+  <xacro:printer_links/>
+  <xacro:printer_joint joint_name="base_to_z_gantry" joint_type="fixed"
+    parent="base_link" child="z_gantry_link" xyz="0.01 26.50 267.10"/>
+  <xacro:printer_joint joint_name="z_gantry_to_x_beam_black" joint_type="fixed"
+    parent="z_gantry_link" child="x_beam_black_link" xyz="-389.70 228.38 40.56"/>
+  <xacro:printer_joint joint_name="x_beam_black_to_toolhead" joint_type="fixed"
+    parent="x_beam_black_link" child="toolhead_link" xyz="218.67 -5.75 47.70"/>
+</robot>

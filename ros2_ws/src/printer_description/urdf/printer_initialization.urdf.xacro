@@ -1,0 +1,16 @@
+<?xml version="1.0"?>
+<robot xmlns:xacro="http://www.ros.org/wiki/xacro" name="base_link_demo">
+  <xacro:include filename="printer_common.urdf.xacro"/>
+  <xacro:printer_links/>
+
+  <!-- Temporary search limits only. FCL collision checks will determine actual limits. -->
+  <xacro:printer_joint joint_name="base_to_z_gantry" joint_type="prismatic"
+    parent="base_link" child="z_gantry_link" xyz="0.01 26.50 267.10"
+    axis="0 0 1" lower="-1000" upper="1000"/>
+  <xacro:printer_joint joint_name="z_gantry_to_x_beam_black" joint_type="prismatic"
+    parent="z_gantry_link" child="x_beam_black_link" xyz="-389.70 228.38 40.56"
+    axis="0 1 0" lower="-1000" upper="1000"/>
+  <xacro:printer_joint joint_name="x_beam_black_to_toolhead" joint_type="prismatic"
+    parent="x_beam_black_link" child="toolhead_link" xyz="218.67 -5.75 47.70"
+    axis="1 0 0" lower="-1000" upper="1000"/>
+</robot>

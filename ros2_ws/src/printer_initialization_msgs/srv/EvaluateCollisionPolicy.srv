@@ -1,0 +1,9 @@
+string active_joint
+int8 direction
+string link_a
+string link_b
+float64 z_position
+bool calibration_phase
+---
+bool ignored
+string rule_id
