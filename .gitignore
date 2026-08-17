@@ -11,7 +11,8 @@ __pycache__/
 unity/Voron24Twin/[Ll]ibrary/
 unity/Voron24Twin/[Tt]emp/
 unity/Voron24Twin/[Oo]bj/
-unity/Voron24Twin/[Bb]uild/
+# Build 결과물은 LFS 로 추적(.gitattributes) — 단 Burst 디버그 정보(DoNotShip)는 제외
+unity/Voron24Twin/Build/**/*BurstDebugInformation_DoNotShip/
 unity/Voron24Twin/[Bb]uilds/
 unity/Voron24Twin/[Ll]ogs/
 unity/Voron24Twin/[Uu]serSettings/

@@ -3,7 +3,9 @@
 *.stp   filter=lfs diff=lfs merge=lfs -text
 *.FCStd filter=lfs diff=lfs merge=lfs -text
 *.gcode filter=lfs diff=lfs merge=lfs -text
- 
+# Unity 빌드 산출물 전체를 LFS 로 (확장자 없는 globalgamemanagers/level0, DLL, .so, .assets 포함)
+unity/Voron24Twin/Build/** filter=lfs diff=lfs merge=lfs -text
+
 *.unity  merge=unityyamlmerge eol=lf
 *.prefab merge=unityyamlmerge eol=lf
 *.asset  merge=unityyamlmerge eol=lf
