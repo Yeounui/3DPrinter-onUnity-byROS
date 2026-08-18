@@ -16,6 +16,9 @@
 | `unity` | `build` | `build`(리눅스 플레이어 기동) \\| `editor`(엔드포인트만) \\| `none` |
 | `rviz` | (자동) | 기본은 꺼짐. `unity:=none` 이면 자동으로 켜짐 |
 | `use_meshes` | `false` | A 의 STL |
+| `ros_ip` | `0.0.0.0` | 엔드포인트가 **서버로서 bind** 하는 주소 |
+| `ros_port` | `10000` | 엔드포인트 포트. 플레이어에도 같이 넘어감 |
+| `unity_connect_ip` | `127.0.0.1` | 플레이어가 **클라이언트로서 접속** 할 주소 |
 
 mock.launch.py 는 건드리지 않음. 그쪽은 W1 회귀 기준선이고 값 소스가 `/joint_states` 에
 직접 쏘는 경로라 이 파일과 토폴로지가 다름.
@@ -120,6 +123,19 @@ def launch_setup(context, *args, **kwargs):
     speed = float(arg('speed'))
     rate = float(arg('rate'))
     period = float(arg('period'))
+    # 엔드포인트 파라미터와 플레이어 인자 양쪽에 같은 값이 들어가므로 여기서 한 번만
+    # 못 박음. 두 자리가 갈리면 "엔드포인트는 떴는데 안 붙는" 상태가 됨.
+    ros_port = int(arg('ros_port'))
+
+    # bind 주소와 connect 주소는 다름. `ros_ip` 는 엔드포인트가 서버로서 bind 하는
+    # 주소라 기본값이 0.0.0.0(모든 인터페이스)이고, 이 값은 접속 대상이 될 수 없다.
+    # 그래서 플레이어에게 넘길 주소를 인자로 따로 뺐다. 암묵적으로 0.0.0.0 -> 127.0.0.1
+    # 치환을 하지 않는 이유는 이 파일이 인자 검증을 launch 단계에서 끝내는 방침이라
+    # 숨은 규칙을 두지 않기 위함.
+    unity_connect_ip = arg('unity_connect_ip')
+    if unity == 'build' and unity_connect_ip in ('', '0.0.0.0'):
+        raise RuntimeError('unity_connect_ip 는 접속 가능한 주소여야 함 '
+                           f'(bind 주소인 ros_ip 와 다름): {unity_connect_ip!r}')
 
     notes = []
     actions = []
@@ -269,7 +285,13 @@ def launch_setup(context, *args, **kwargs):
                 cmd=[player,
                      '-force-glcore',             # Vulkan 소프트웨어 폴백 방지
                      '-screen-fullscreen', '0',   # 창 모드. 터미널 옆에 둠
-                     '-logFile', '-'],            # ROS 로그와 같은 터미널로
+                     '-logFile', '-',             # ROS 로그와 같은 터미널로
+                     # RosBootstrap.cs 가 읽어 씬의 ROSConnection 을 덮어씀. 안 넘기면
+                     # 씬에 박힌 값으로 조용히 폴백해서 ros_port:= 오버라이드가 먹지
+                     # 않는다. 인자 이름·형식은 RosBootstrap.ValueOf 와 맞춰야 함
+                     # (`--이름 값` / `--이름=값` 둘 다 받지만 앞의 형식을 씀).
+                     '--ros-ip', unity_connect_ip,
+                     '--ros-port', str(ros_port)],
                 output='screen',
                 # 창을 닫으면 launch 전체가 내려감. 목표가 "Ctrl+C 하나".
                 on_exit=[Shutdown(reason='Unity 플레이어 종료')])]))
@@ -279,7 +301,7 @@ def launch_setup(context, *args, **kwargs):
         actions.append(Node(
             package='ros_tcp_endpoint', executable='default_server_endpoint',
             name='ros_tcp_endpoint', output='screen',
-            parameters=[{'ROS_IP': arg('ros_ip'), 'ROS_TCP_PORT': int(arg('ros_port'))}]))
+            parameters=[{'ROS_IP': arg('ros_ip'), 'ROS_TCP_PORT': ros_port}]))
 
     # ------------------------------------------------------------------
     # RViz 기본값이 mock.launch.py 와 반대(false). Unity 플레이어가 뷰어이고 창이 둘
@@ -317,8 +339,13 @@ def generate_launch_description():
         DeclareLaunchArgument('use_meshes', default_value='false'),
         DeclareLaunchArgument('rate', default_value='50.0'),
         DeclareLaunchArgument('period', default_value='12.0'),
-        DeclareLaunchArgument('ros_ip', default_value='0.0.0.0'),
+        DeclareLaunchArgument('ros_ip', default_value='0.0.0.0',
+                              description='엔드포인트가 bind 하는 주소 (서버 쪽)'),
         DeclareLaunchArgument('ros_port', default_value='10000'),
+        DeclareLaunchArgument('unity_connect_ip', default_value='127.0.0.1',
+                              description='플레이어가 접속할 주소 (클라이언트 쪽). '
+                                          'ros_ip 와 같은 값이 아님 — 0.0.0.0 은 '
+                                          '접속 대상이 될 수 없음'),
 
         # 인자 값에 따라 노드 구성 자체가 갈리므로 조건부 substitution 대신 OpaqueFunction
         # 으로 파이썬에서 분기. IfCondition 을 3 지선다에 쓰면 조건식이 노드마다 붙음.
