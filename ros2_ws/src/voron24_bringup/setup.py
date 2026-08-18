@@ -18,5 +18,8 @@ setup(
     maintainer_email='team@example.com',
     description='Integrated launch files for the Voron 2.4 digital twin',
     license='MIT',
-    entry_points={'console_scripts': []},
+    entry_points={'console_scripts': [
+        # sim.launch.py 의 STATE_NODE_CANDIDATES 가 이 이름으로 설치 트리를 훑음.
+        'printer_state_node = voron24_bringup.printer_state_node:main',
+    ]},
 )
