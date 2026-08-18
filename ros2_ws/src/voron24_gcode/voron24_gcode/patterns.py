@@ -22,7 +22,7 @@ class PatternGenerator:
 
     # ------------------------------------------------------------------
     def __call__(self, pattern, t):
-        """-> (x, y, z, extruding(bool)). 리밋 클램프까지 마친 값."""
+        """→ (x, y, z, extruding). 리밋 클램프 완료된 값."""
         fn = getattr(self, '_' + pattern, None)
         if fn is None:
             raise ValueError(f'unknown pattern: {pattern} (choose from {PATTERNS})')
@@ -42,10 +42,10 @@ class PatternGenerator:
     def _none(self, t):
         """원점 고정, 압출 없음. 동작 없이 초기화만.
 
-        `_home` 과 반환값은 같지만 다른 의도에 의해 작성되었으므로 통합하지 말 것.
-        `_home` 은 "홈 위치 표시"를 위해서 `_none` 은 "이동 없이 초기화".
+        _home 과 반환값 같지만 의도가 달라 통합 금지.
+        _home 은 "홈 위치 표시", _none 은 "이동 없이 초기화".
         sim.launch.py 에서 값 소스가 manual_publisher / gcode_player_node 로
-        넘어갈 때 mock 퍼블리셔를 무해하게 만드는 용도다 (04b 선행 커밋).
+        넘어갈 때 mock 퍼블리셔를 무해하게 만드는 용도 (04b 선행 커밋).
         """
         return 0.0, 0.0, 0.0, False
 
@@ -83,7 +83,7 @@ class PatternGenerator:
         return x, y, 0.0002 + self.layer * 0.0002, True
 
     def _lissajous(self, t):
-        """기본. X/Y 리사주 + Z 완만한 상승. 궤적이 겹치지 않아 시각적으로 보기 좋다."""
+        """기본. X/Y 리사주 + Z 완만 상승. 궤적 안 겹쳐 시각적으로 보기 좋음."""
         m = self.margin
         ax, ay = self.sx - 2 * m, self.sy - 2 * m
         w = 2.0 * math.pi / self.period

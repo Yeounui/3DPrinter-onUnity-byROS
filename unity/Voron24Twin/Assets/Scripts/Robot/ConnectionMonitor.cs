@@ -3,8 +3,8 @@ using UnityEngine;
 namespace Voron24.Robot
 {
     /// <summary>
-    /// ROS 연결 상태를 화면 좌상단에 표시한다.
-    /// 통합 디버깅 때 "Unity 문제인가 ROS 문제인가" 를 즉시 판별하기 위한 것.
+    /// ROS 연결 상태 화면 좌상단 표시.
+    /// 통합 디버깅 시 Unity/ROS 문제 즉시 판별용.
     /// </summary>
     public class ConnectionMonitor : MonoBehaviour
     {

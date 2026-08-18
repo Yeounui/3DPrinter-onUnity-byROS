@@ -1,8 +1,8 @@
 """CoreXY 변환.
 
-URDF 는 폐루프를 표현할 수 없으므로 X/Y 를 독립 prismatic 으로 모델링한다.
-모터 풀리 회전을 시각화하고 싶을 때만 이 변환을 써서 별도 토픽으로 퍼블리시한다.
-기구학 자체와는 무관하다.
+URDF 는 폐루프 표현 불가하므로 X/Y 를 독립 prismatic 으로 모델링.
+모터 풀리 회전 시각화 시에만 이 변환으로 별도 토픽 퍼블리시.
+기구학 자체와는 무관.
 """
 import math
 
@@ -12,12 +12,12 @@ MM_PER_REV = BELT_PITCH_MM * PULLEY_TEETH      # 40 mm
 
 
 def xy_to_ab(x_mm, y_mm):
-    """카티전 -> A/B 모터 이동량 [mm]"""
+    """카티전 → A/B 모터 이동량 [mm]"""
     return x_mm + y_mm, x_mm - y_mm
 
 
 def ab_to_xy(a_mm, b_mm):
-    """A/B 모터 이동량 -> 카티전 [mm]"""
+    """A/B 모터 이동량 → 카티전 [mm]"""
     return 0.5 * (a_mm + b_mm), 0.5 * (a_mm - b_mm)
 
 
@@ -26,7 +26,7 @@ def mm_to_rad(mm):
 
 
 def xy_to_motor_angles(x_mm, y_mm):
-    """카티전 [mm] -> (theta_a, theta_b) [rad]"""
+    """카티전 [mm] → (theta_a, theta_b) [rad]"""
     a, b = xy_to_ab(x_mm, y_mm)
     return mm_to_rad(a), mm_to_rad(b)
 

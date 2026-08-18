@@ -9,15 +9,15 @@ namespace Voron24.Robot
         private JointStateSubscriber subscriber;
 
         [Header("Movement")]
-        [Tooltip("초당 이동 거리(m/s)")]
+        [Tooltip("초당 이동 거리 (m/s)")]
         [SerializeField]
         private float moveSpeed = 0.05f;
 
-        [Tooltip("조인트 최소 위치(m)")]
+        [Tooltip("조인트 최소 위치 (m)")]
         [SerializeField]
         private float lowerLimit = 0f;
 
-        [Tooltip("조인트 최대 위치(m)")]
+        [Tooltip("조인트 최대 위치 (m)")]
         [SerializeField]
         private float upperLimit = 0.25f;
 
@@ -39,7 +39,7 @@ namespace Voron24.Robot
             if (subscriber == null)
             {
                 Debug.LogError(
-                    "[Keyboard] JointStateSubscriber가 연결되지 않았습니다.");
+                    "[Keyboard] JointStateSubscriber 미연결");
 
                 enabled = false;
                 return;
@@ -56,7 +56,7 @@ namespace Voron24.Robot
         {
             float amount = moveSpeed * Time.deltaTime;
 
-            // X축: 좌우 방향키
+            // X축 — 좌우 방향키
             if (Input.GetKey(KeyCode.LeftArrow))
             {
                 targetX -= amount;
@@ -67,7 +67,7 @@ namespace Voron24.Robot
                 targetX += amount;
             }
 
-            // Y축: 위아래 방향키
+            // Y축 — 위아래 방향키
             if (Input.GetKey(KeyCode.DownArrow))
             {
                 targetY -= amount;
@@ -78,7 +78,7 @@ namespace Voron24.Robot
                 targetY += amount;
             }
 
-            // Z축: Page Down / Page Up
+            // Z축 — PageDown/PageUp
             if (Input.GetKey(KeyCode.PageDown))
             {
                 targetZ -= amount;
@@ -89,7 +89,7 @@ namespace Voron24.Robot
                 targetZ += amount;
             }
 
-            // Home 키: X/Y/Z 원점 복귀
+            // Home — X/Y/Z 원점 복귀
             if (Input.GetKeyDown(KeyCode.Home))
             {
                 targetX = 0f;

@@ -2,57 +2,57 @@
 """
 make_test_gcode.py
 ==================
-슬라이서 없이 파서·보간기 검증용 G-code 를 뱉는 생성 스크립트 (04b 5a).
+슬라이서 없이 파서·보간기 검증용 G-code 생성 스크립트 (04b 5a).
 
-stdlib 만 쓰고 ROS 소싱 없이 돈다. patterns.py 와 같은 관례다.
+stdlib 전용, ROS 미소싱. patterns.py 와 같은 관례.
 
     python3 tools/make_test_gcode.py square   > /tmp/square.gcode
     python3 tools/make_test_gcode.py cylinder > /tmp/cyl.gcode
     python3 tools/make_test_gcode.py torture  > /tmp/torture.gcode
 
-도형 두 개는 motion.py 의 보간을, torture 는 gcode_parser.py 의 방언 처리를 겨눈다.
+도형 2개는 motion.py 보간, torture 는 gcode_parser.py 방언 처리 대상.
 
-    square    긴 직선. 한 변 200mm 를 여러 틱에 나눠 먹는 경로.
-    cylinder  짧은 세그먼트 수천 개. sample() 의 while 이 없으면 여기서 10배 느려진다.
-    torture   방언 총동원 + 무시 목록. 궤적 자체는 무의미하다.
+    square    긴 직선. 한 변 200mm, 복수 틱 분할 경로.
+    cylinder  짧은 세그먼트 수천 개. sample() while 미사용 시 10배 성능 저하.
+    torture   방언 총동원 + 무시 목록. 궤적 자체 무의미.
 
-G-code 는 stdout, 통계 요약은 stderr으로 출력. `> out.gcode` 시 g-code와 예상 소요 시간 포함되어 출력.
-motion.py 와 비교하여 검증.
+G-code stdout, 통계 요약 stderr 출력. `> out.gcode` 시 g-code + 예상 소요 시간 포함.
+motion.py 비교 검증용.
 
-G-code 단위는 **mm**.
-`F` 는 mm/min 이므로 motion.py에서 단위 속도가 mm/s이므로 F = mm/min * min/60s 으로 변환.
-travel/print로부터의 이송 속도가 각각 다른 단위로 출력됨.
+G-code 단위 **mm**.
+`F` mm/min, motion.py mm/s 이므로 F = mm/min ÷ 60 변환.
+travel/print 이송 속도 각각 다른 단위로 출력.
 """
 import argparse
 import math
 import sys
 
-BED_LIMIT_MM = 250.0        # voron24_params.xacro 의 stroke_x/y/z. 넘으면 경고만 한다.
+BED_LIMIT_MM = 250.0        # voron24_params.xacro 의 stroke_x/y/z. 넘으면 경고만 함.
 FILAMENT_DIAMETER_MM = 1.75
 
 
 def format_num(value):
-    """float -> G-code 숫자 토큰. 소수 3자리(µm)로 자르고 슬라이서 출력처럼 뒤 0 을 턴다.
+    """float → G-code 숫자 토큰. 소수 3자리(µm) 절삭 + 슬라이서 출력 형식 후행 0 제거.
 
-    225.0 -> '225', 0.2 -> '0.2'. 한 파일에 두 형태가 섞이므로 파서가 소수점 유무를
-    모두 받는지 검증된다. '-0' 은 cos/sin 의 부동소수 잡음이 'X-0' 으로 새는 것을 막는다.
+    225.0 → '225', 0.2 → '0.2'. 파일 내 두 형태 혼재로 파서 소수점 유무
+    양쪽 수용 검증. '-0' 은 cos/sin 부동소수 잡음의 'X-0' 유출 방지.
     """
     text = f'{value:.3f}'.rstrip('0').rstrip('.')
     return '0' if text in ('', '-0') else text
 
 
 class GcodeWriter:
-    """한 좌표 값을 반환하면서 modal status와 정답지를 함께 추적한다.
+    """좌표 값 반환 + modal status·정답지 동시 추적.
 
-    G-code 는 한 번 지정한 값은 갱신 전까지 유지되는 modal.
-    그래서 생성기도 프린터와 같은 상태를 들고 있어야 생략할 축을 판단.
+    G-code 는 지정 값이 갱신 전까지 유지되는 modal.
+    생성기도 프린터 동일 상태 유지 필요 — 생략 축 판단용.
 
-    아래 오른쪽 열은 규격이 정한 워드로, 출력 파일에 그대로 찍힌다.
+    우측 열은 규격 워드, 출력 파일에 그대로 출력.
 
         필드                  출력 워드
         pos_x / pos_y / pos_z   X Y Z   현재 위치 [mm]
-        extruded_mm             E       누적 압출 길이 [mm]. 층마다 G92 E0 로 0 이 된다
-        feed_mm_min             F       현재 이송속도 [mm/min]. motion.py 의 mm/s 와 60 배 차이
+        extruded_mm             E       누적 압출 길이 [mm]. 층마다 G92 E0 → 0
+        feed_mm_min             F       현재 이송속도 [mm/min]. motion.py mm/s 와 60배 차이
     """
 
     def __init__(self, out, width_mm, layer_height_mm, filament_diameter_mm):
@@ -61,12 +61,12 @@ class GcodeWriter:
         self.layer_height_mm = layer_height_mm
         self.filament_area_mm2 = math.pi * (filament_diameter_mm / 2.0) ** 2
 
-        # 모달 상태 — 위 표 참조.
+        # 모달 상태 — 상기 표 참조.
         self.pos_x = self.pos_y = self.pos_z = 0.0
         self.extruded_mm = 0.0
-        self.feed_mm_min = None   # 첫 이동 전엔 미정. 값이 바뀔 때만 F 를 찍힘.
+        self.feed_mm_min = None   # 첫 이동 전 미정. 변경 시만 F 출력.
 
-        # 정답지 — motion.py 를 맞춰볼 대상.
+        # 정답지 — motion.py 대조 대상.
         self.path_mm = self.extrude_path_mm = 0.0
         self.duration_s = self.extrude_duration_s = 0.0
         self.move_count = self.extrude_count = self.layer_count = 0
@@ -74,10 +74,10 @@ class GcodeWriter:
 
     @property
     def filament_per_mm(self):
-        """경로 1mm 당 밀어넣을 필라멘트 [mm].
+        """경로 1mm 당 필라멘트 압출량 [mm].
 
-        (선폭 x 층높이) / 필라멘트 단면적. 0.42 x 0.2 / 2.405 ~= 0.0349 로,
-        실제 슬라이서 출력과 같은 자릿수다.
+        (선폭 × 층높이) / 필라멘트 단면적. 0.42 × 0.2 / 2.405 ≈ 0.0349,
+        슬라이서 실제 출력과 동일 자릿수.
         """
         return self.width_mm * self.layer_height_mm / self.filament_area_mm2
 
@@ -85,7 +85,7 @@ class GcodeWriter:
         print(text, file=self.out)
 
     def move(self, to_x=None, to_y=None, to_z=None, feed=None, extrude=False, comment=None):
-        """한 줄 이동. 생략한 축은 현재 위치를 유지한다."""
+        """한 줄 이동. 생략 축은 현재 위치 유지."""
         new_x = self.pos_x if to_x is None else to_x
         new_y = self.pos_y if to_y is None else to_y
         new_z = self.pos_z if to_z is None else to_z
@@ -100,7 +100,7 @@ class GcodeWriter:
         tokens = ['G1' if extrude else 'G0']
         if feed_changed:
             tokens.append(f'F{format_num(self.feed_mm_min)}')
-        # 새로 받은 좌표 값만 g-code로 변환.
+        # 변경된 좌표만 g-code 출력.
         if new_x != self.pos_x:
             tokens.append(f'X{format_num(new_x)}')
         if new_y != self.pos_y:
@@ -129,12 +129,12 @@ class GcodeWriter:
         self.line(';LAYER_CHANGE')
         self.line(f';Z:{format_num(z)}')
         self.line(f';WIDTH:{format_num(self.width_mm)}')
-        self.line('G92 E0')      # 슬라이서 관례. 층마다 E 를 0 으로 되돌린다.
+        self.line('G92 E0')      # 슬라이서 관례. 층마다 E → 0.
         self.extruded_mm = 0.0
 
     def header(self, header_args):
         self.line(f'; make_test_gcode.py {" ".join(header_args)}')
-        self.line('M104 S210        ; 무시 — 온도. 이 레포는 시뮬 전용이다')
+        self.line('M104 S210        ; 무시 — 온도. 이 레포는 시뮬 전용')
         self.line('M140 S60         ; 무시')
         self.line('G21              ; mm')
         self.line('G90              ; 절대좌표')
@@ -145,13 +145,13 @@ class GcodeWriter:
 
     def footer(self):
         self.line('M107             ; 무시')
-        # F9000 = 150mm/s 인데 vel_z 는 50mm/s 다. Z 클램프 케이스가 여기서 생긴다.
+        # F9000 = 150mm/s, vel_z 50mm/s. Z 클램프 케이스 발생 지점.
         self.move(to_z=min(self.pos_z + 10.0, BED_LIMIT_MM), feed=9000, comment='리프트')
         self.line('; done')
 
 
 def generate_square(writer, args):
-    """N 층 사각형 외곽선. 한 변이 길어 여러 틱에 나눠 먹는 경로를 만든다."""
+    """N층 사각형 외곽선. 긴 변 → 복수 틱 분할 경로 생성."""
     center_x, center_y = args.center
     half = args.size / 2.0
     min_x, min_y = center_x - half, center_y - half
@@ -166,7 +166,7 @@ def generate_square(writer, args):
 
 
 def generate_cylinder(writer, args):
-    """N 층 원주. 현 하나가 seg_len 이라 짧은 세그먼트가 수천 개 나온다."""
+    """N층 원주. 현 seg_len 으로 짧은 세그먼트 수천 개 생성."""
     center_x, center_y = args.center
     circumference = 2.0 * math.pi * args.radius
     seg_count = max(3, round(circumference / args.seg_len))
@@ -182,11 +182,11 @@ def generate_cylinder(writer, args):
                         feed=args.feed_print, extrude=True)
 
 
-# torture 는 궤적이 아니라 방언을 겨눈다. GcodeWriter 를 거치지 않고 직접 적는다 —
-# G92 가 좌표계를 옮기므로 writer 의 추적값과 실제가 갈라지고, 통계도 무의미하다.
+# torture 대상은 궤적이 아닌 방언. GcodeWriter 미사용 직접 기록 —
+# G92 좌표계 이동으로 writer 추적값과 실제 불일치, 통계 무의미.
 TORTURE = """\
 ; make_test_gcode.py torture
-; 파서 방언 검증용 픽스처. 궤적 자체는 의미 없다.
+; 파서 방언 검증 픽스처. 궤적 자체 무의미.
 M104 S210          ; 무시 — 온도
 M140 S60           ; 무시
 G21                ; mm
@@ -199,17 +199,17 @@ M106 S255          ; 무시 — 팬
 ;Z:0.2
 ;WIDTH:0.42
 G92 E0             ; E 리셋
-G0 F9000 X100 Y100 Z0.2   ; travel. E 가 없다
+G0 F9000 X100 Y100 Z0.2   ; travel. E 없음
 G1 F1800 X120 Y100 E0.698 ; 압출 시작. F 설정
-G1 X120 Y120 E1.396       ; F 생략 — 직전 1800 이 유지되어야 한다
-g1 x100 y120 e2.094 ; 소문자 + 코드 뒤 인라인 주석
-G92 X0 Y0          ; 좌표계 리셋 — 이후 X0 Y0 는 (100,120) 이다
-G1 X20 E2.792      ; 실제로는 X120. G92 를 무시하면 X20 으로 튄다
-M83                ; 상대 E 로 전환
-G1 X0 Y20 E0.698   ; 이후 E 는 증분값
+G1 X120 Y120 E1.396       ; F 생략 — 직전 1800 유지 필요
+g1 x100 y120 e2.094 ; 소문자 + 인라인 주석
+G92 X0 Y0          ; 좌표계 리셋 — 이후 X0 Y0 = (100,120)
+G1 X20 E2.792      ; 실제 X120. G92 무시 시 X20 점프
+M83                ; 상대 E 전환
+G1 X0 Y20 E0.698   ; 이후 E 증분
 ;WIDTH:0.6
 G1 X-20 E0.698     ; 실제 X100 Y140
-G2 X0 Y0 I10 J0    ; 미지원 — 경고 후 무시되어야 한다
+G2 X0 Y0 I10 J0    ; 미지원 — 경고 후 무시 필요
 M600               ; 무시
 G0 F9000 Z5
 ; done
@@ -217,20 +217,20 @@ G0 F9000 Z5
 
 TORTURE_G91 = """\
 ; make_test_gcode.py torture --dialect g91
-; G91 거부 경로 검증용. 파서는 이 파일을 읽다가 에러로 멈춰야 한다.
+; G91 거부 경로 검증용. 파서 에러 정지 필요.
 G21
 G28
-G91                ; 상대좌표 — 04b 는 이를 거부하기로 정했다
+G91                ; 상대좌표 — 04b 거부 결정
 G1 F1800 X10 Y10 E0.349
 G1 X10 E0.698
 """
 
 
 def strip_out_option(argv):
-    """헤더에 남길 인자에서 -o 를 뺀다.
+    """헤더 인자에서 -o 제거.
 
-    출력 위치만 다르다고 내용이 달라지면 회귀 픽스처로 쓸 수 없다
-    (같은 인자 -> 같은 바이트).
+    출력 위치 차이로 내용 변경 시 회귀 픽스처 불가
+    (같은 인자 → 같은 바이트).
     """
     kept = []
     skip_next = False
@@ -248,7 +248,7 @@ def strip_out_option(argv):
 
 
 def print_answer_key(writer, shape):
-    """motion.py 의 50Hz 샘플을 맞춰볼 대상. stdout 을 더럽히지 않게 stderr 로."""
+    """motion.py 50Hz 샘플 대조 대상. stdout 미오염을 위해 stderr 출력."""
     def say(text):
         print(text, file=sys.stderr)
 
@@ -261,7 +261,7 @@ def print_answer_key(writer, shape):
     if writer.extrude_count:
         say(f'  mean_seg={writer.extrude_path_mm / writer.extrude_count:.3f}mm')
     if writer.out_of_bed:
-        say(f'  WARN  0~{format_num(BED_LIMIT_MM)}mm 범위를 벗어난 좌표가 있다 (stroke 초과)')
+        say(f'  WARN  0~{format_num(BED_LIMIT_MM)}mm 범위 초과 좌표 존재 (stroke 초과)')
 
 
 def main(argv=None):
@@ -277,7 +277,7 @@ def main(argv=None):
     parser.add_argument('--size', type=float, default=200.0, help='square 한 변 [mm]')
     parser.add_argument('--radius', type=float, default=40.0, help='cylinder 반지름 [mm]')
     parser.add_argument('--seg-len', type=float, default=0.2,
-                        help='cylinder 현 길이 [mm]. 짧을수록 세그먼트가 많아진다')
+                        help='cylinder 현 길이 [mm]. 짧을수록 세그먼트 증가')
     parser.add_argument('--center', type=float, nargs=2, default=[125.0, 125.0],
                         metavar=('X', 'Y'), help='베드 중앙 [mm]')
     parser.add_argument('--feed-print', type=float, default=3600.0, help='압출 이송 [mm/min]')
@@ -285,7 +285,7 @@ def main(argv=None):
     parser.add_argument('--filament', type=float, default=FILAMENT_DIAMETER_MM,
                         help='필라멘트 지름 [mm]')
     parser.add_argument('--dialect', choices=('g90', 'g91'), default='g90',
-                        help='torture 전용. g91 은 파서가 거부해야 하는 입력이다')
+                        help='torture 전용. g91 은 파서 거부 대상 입력')
     args = parser.parse_args(argv)
 
     out = open(args.out, 'w') if args.out else sys.stdout

@@ -20,8 +20,8 @@ setup(
     entry_points={
         'console_scripts': [
             'mock_publisher = voron24_gcode.mock_publisher_node:main',
-            # manual_publisher_node.py 는 A 담당. 파일이 들어오기 전까지 이 엔트리는
-            # 빌드는 통과하지만 실행 시 ImportError (04b 선행 커밋).
+            # manual_publisher_node.py 는 A 담당. 파일 들어오기 전까지 이 엔트리는
+            # 빌드 통과하지만 실행 시 ImportError (04b 선행 커밋).
             'manual_publisher = voron24_gcode.manual_publisher_node:main',
             'gcode_player = voron24_gcode.gcode_player_node:main',
         ],

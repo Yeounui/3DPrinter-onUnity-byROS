@@ -10,9 +10,9 @@ printer_state_node.py
     ros2 topic pub --once /printer/cmd voron24_msgs/PrinterCommand "{command: 'home'}"
     ros2 topic echo /joint_states
 
-값 소스(manual_publisher / gcode_player)는 `/printer/target` 으로 쏘고 이 노드가 받아
-`/joint_states` 로 낸다. 소스 전환은 launch 의 remapping 이 하며 값 소스의 코드는 건드리지
-않는다 (04a §"소스 전환은 remapping 으로").
+값 소스(manual_publisher / gcode_player)는 /printer/target 으로 쏘고 이 노드가 받아
+/joint_states 로 냄. 소스 전환은 launch remapping 이 하며 값 소스 코드는 건드리지
+않음 (04a §"소스 전환은 remapping 으로").
 
      Unity 키보드/UI ──┐
                        ├──▶ /printer/cmd ──▶ 이 노드 ──▶ /joint_states ──▶ RViz, Unity
@@ -22,12 +22,12 @@ printer_state_node.py
                                            값 소스 (manual_publisher / gcode_player)
 
 이 노드가 직접 하는 것은 넷뿐 — jog 적분, home, 리밋 클램프, 모드 관리.
-`set_speed` 와 `pause` 처럼 **시간축**을 다루는 명령은 보간기를 쥔 값 소스가 처리해야
-하므로 `/printer/playback` 으로 되넘긴다. 여기서 값을 붙잡는 방식으로 구현하면 재개 시
-좌표가 튄다.
+set_speed 와 pause 처럼 **시간축**을 다루는 명령은 보간기를 쥔 값 소스가 처리해야
+하므로 /printer/playback 으로 되넘김. 여기서 값을 붙잡는 방식으로 구현하면 재개 시
+좌표가 튐.
 
-단위 — `/printer/cmd` 의 jog 만 **mm** 다 (계약 §2 의 유일한 SI 예외). 나머지 입출력은
-전부 m 이고, mm→m 변환은 `jog_to_m()` 한 곳에서만 일어난다. 중복 변환 주의.
+단위 — /printer/cmd 의 jog 만 **mm** (계약 §2 유일한 SI 예외). 나머지 입출력은
+전부 m 이고, mm→m 변환은 jog_to_m() 한 곳에서만 일어남. 중복 변환 주의.
 """
 import os
 import re
@@ -60,12 +60,12 @@ STREAM_COMMANDS = ('load_gcode', 'pause', 'resume', 'stop', 'set_speed')
 
 # ----------------------------------------------------------------------
 # 스트로크 리밋의 단일 출처는 voron24_params.xacro (CLAUDE.md 파일 소유권 §4).
-# 여기에 0.250 을 복제해 두면 A 가 값을 바꿀 때 조용히 어긋난다.
+# 여기에 0.250 을 복제해 두면 A 가 값 바꿀 때 조용히 어긋남.
 #
 # 같은 일을 voron24_gcode/motion.py 가 최대속도(vel_*)에 대해 이미 하고 있어 그 방식을
-# 그대로 따르되 **import 는 하지 않는다.** bringup 이 gcode 패키지의 내부 모듈에
+# 그대로 따르되 **import 는 하지 않음.** bringup 이 gcode 패키지 내부 모듈에
 # 의존하면 값 소스를 바꿔 끼우는 이 노드가 특정 소스 패키지에 묶이고, gcode 쪽 리팩터가
-# launch 골격을 깨뜨린다. 20 줄짜리 파서를 공유하려고 패키지 간 결합을 만들 값어치는 없음.
+# launch 골격을 깨뜨림. 20 줄짜리 파서를 공유하려고 패키지 간 결합 만들 값어치 없음.
 PARAMS_PACKAGE = 'voron24_description'
 PARAMS_XACRO = os.path.join('urdf', 'voron24_params.xacro')
 
@@ -113,10 +113,10 @@ def read_xacro_property(text, name):
 
 
 def load_stroke_limits(path=None):
-    """-> ((sx, sy, sz) [m], 읽어온 경로). 못 읽으면 fallback 과 None.
+    """→ ((sx, sy, sz) [m], 읽어온 경로). 못 읽으면 fallback 과 None.
 
-    xacro 의 `stroke_*` 도 m 이라 환산이 없음. 모든 prismatic 의 `lower` 는 0 이므로
-    (계약 §3) 하한은 읽을 것이 없고 상한만 가져온다.
+    xacro stroke_* 도 m 이라 환산 없음. 모든 prismatic lower 는 0 이므로
+    (계약 §3) 하한은 읽을 것 없고 상한만 가져옴.
     """
     path = path or find_params_xacro()
     if path is None:
@@ -138,9 +138,9 @@ STROKE_M, STROKE_SOURCE = load_stroke_limits()
 
 
 def clamp_axes(values, stroke):
-    """-> (클램프된 값 3개, 실제로 잘린 축 이름 리스트).
+    """→ (클램프된 값 3개, 실제로 잘린 축 이름 리스트).
 
-    lower 는 전부 0 (계약 §3). 스커트·프라임 라인이 베드를 벗어나는 G-code 는 흔하고
+    lower 전부 0 (계약 §3). 스커트·프라임 라인이 베드 벗어나는 G-code 는 흔하고
     값 소스는 일부러 클램프하지 않으므로(gcode_player_node 주석) 여기가 유일한 방어선.
     """
     out = []
@@ -198,6 +198,8 @@ class PrinterState(Node):
                 '(colcon build --packages-select voron24_msgs 후 setup.bash 재소싱)')
 
         self._yielded_status = False        # 남이 /printer/status 를 잡고 있음
+        self._dup_warned = False            # /joint_states 발행자 중복 경고
+        self.create_timer(2.0, self.check_sole_ownership)
         sx, sy, sz = self.stroke
         self.get_logger().info(
             f'printer state | rate={self.rate}Hz mode={self.mode} '
@@ -213,10 +215,10 @@ class PrinterState(Node):
             self.paused = False
 
     def relay(self, msg):
-        """스트림 명령을 `/printer/playback` 으로 되넘김. 메시지를 그대로 흘린다.
+        """스트림 명령을 /printer/playback 으로 되넘김. 메시지를 그대로 흘림.
 
-        args/payload 를 해석하지 않는 것이 요점 — `set_speed` 의 배속 단계표(SPEED_STEPS)
-        도, G-code 경로의 유효성도 값 소스가 판단할 몫이다.
+        args/payload 를 해석하지 않는 것이 요점 — set_speed 배속 단계표(SPEED_STEPS)
+        도, G-code 경로 유효성도 값 소스가 판단할 몫.
         """
         if self.playback_pub is None:
             return False
@@ -240,7 +242,7 @@ class PrinterState(Node):
             self.get_logger().warn(f'모르는 명령 — 무시함: {msg.command!r}')
 
     def after_relay(self, command, msg):
-        """릴레이한 뒤의 모드 전환. 값은 이미 넘겼고 여기서는 상태만 움직인다."""
+        """릴레이 후 모드 전환. 값은 이미 넘겼고 여기서는 상태만 움직임."""
         if command == 'load_gcode':
             self.filename = os.path.basename(msg.payload.strip())
             self.paused = False
@@ -249,27 +251,27 @@ class PrinterState(Node):
             self.paused = False
             self.set_mode('playing', 'resume')
         elif command == 'pause':
-            # 모드는 그대로 playing — 값 소스가 커서를 쥔 채 멈춘 것뿐이다.
+            # 모드는 그대로 playing — 값 소스가 커서를 쥔 채 멈춘 것뿐.
             self.paused = True
         elif command == 'stop':
             self.filename = ''
             self.set_mode('manual', 'stop')
         # set_speed 는 모드를 되돌리지 않음. 재생 중 배속만 올리는 것이 의도인데 그때마다
-        # manual 로 떨어지면 쓸모가 없다 (04a §"두 모드").
+        # manual 로 떨어지면 쓸모 없음 (04a §"두 모드").
 
     # ------------------------------------------------------------------
     def jog(self, args):
-        """델타를 좌표로 누산. **args 는 mm** (계약 §2 의 유일한 SI 예외).
+        """델타를 좌표로 누산. **args 는 mm** (계약 §2 유일한 SI 예외).
 
         적분을 이 노드만 하는 이유 — 입력 장치(Unity 키보드, 터미널 키보드, 향후 UI)는
-        전부 델타만 던지는 동등한 peer 다. 어느 한쪽이 좌표를 들고 있으면 다른 쪽에서
-        움직인 만큼이 그쪽 기준에서 사라진다.
+        전부 델타만 던지는 동등한 peer. 어느 한쪽이 좌표를 들고 있으면 다른 쪽에서
+        움직인 만큼이 그쪽 기준에서 사라짐.
         """
         if not args:
             self.get_logger().warn('jog 에 args(dx, dy, dz)가 없음')
             return
         if self.mode == 'playing':
-            # 거부하지 않음. 재생을 세우고 손으로 넘겨받는다. resume 으로 되돌아감.
+            # 거부하지 않음. 재생을 세우고 손으로 넘겨받음. resume 으로 되돌아감.
             self.relay(self._command('pause'))
             self.paused = True
             self.set_mode('manual', 'jog')
@@ -280,8 +282,8 @@ class PrinterState(Node):
     def home(self, payload=''):
         """원점 복귀. payload 로 축 지정 가능 ("XYZ", "Z" 등). 빈 값이면 전축.
 
-        `playing` 중이면 먼저 `stop` 을 되넘긴다 — 값 소스가 계속 target 을 쏘는 채로
-        좌표만 0 으로 밀면 다음 틱에 도로 끌려간다 (04a §5b 표).
+        playing 중이면 먼저 stop 을 되넘김 — 값 소스가 계속 target 을 쏘는 채로
+        좌표만 0 으로 밀면 다음 틱에 도로 끌려감 (04a §5b 표).
         """
         if self.mode == 'playing':
             self.relay(self._command('stop'))
@@ -324,10 +326,10 @@ class PrinterState(Node):
 
     # ------------------------------------------------------------------
     def on_target(self, msg):
-        """`/printer/target` 수신. `playing` 일 때만 통과시킨다.
+        """/printer/target 수신. playing 일 때만 통과시킴.
 
-        초기 모드가 manual 이라 값 소스를 먼저 띄워도 그림이 움직이지 않는 것이 정상이며,
-        패턴을 보려면 `resume` 을 한 번 밀어야 한다 (sim.launch.py 가 그렇게 함).
+        초기 모드가 manual 이라 값 소스를 먼저 띄워도 그림이 안 움직이는 것이 정상이며,
+        패턴을 보려면 resume 을 한 번 밀어야 함 (sim.launch.py 가 그렇게 함).
         """
         if self.mode != 'playing':
             if not self._stray_target_warned:
@@ -352,8 +354,8 @@ class PrinterState(Node):
         self.set_position(values)
 
     def tick(self):
-        """50Hz. 값이 안 들어와도 마지막 좌표를 계속 낸다 — 이 토픽의 단독 소유자이므로
-        여기가 비면 RViz 의 TF 가 늙고 Unity 가 연결이 끊긴 것으로 오인한다."""
+        """50Hz. 값이 안 들어와도 마지막 좌표를 계속 냄 — 이 토픽의 단독 소유자이므로
+        여기가 비면 RViz TF 가 늙고 Unity 가 연결 끊긴 것으로 오인함."""
         msg = JointState()
         msg.header.stamp = self.get_clock().now().to_msg()
         msg.name = list(JOINT_NAMES)
@@ -364,13 +366,43 @@ class PrinterState(Node):
         self.js_pub.publish(msg)
         self._prev = (x, y, z)
 
+    def check_sole_ownership(self):
+        """`/joint_states` 발행자가 나 하나인지 2 초마다 확인.
+
+        이 토픽의 단독 소유는 이 노드의 전제 (04a §5b). 발행자가 둘이면 두 흐름이
+        50Hz 씩 번갈아 도착하고, 받는 쪽은 그때그때 온 값을 그대로 쓰므로 포즈가 두
+        좌표 사이를 오감. 한쪽이 정지해 있으면 **"영점으로 돌아갔다 다시 움직임"**
+        으로 보임.
+
+        압도적으로 흔한 원인은 앞 실행의 노드가 살아남은 것. 터미널을 닫거나
+        Ctrl+C 가 launch 에 안 먹으면 노드만 고아(PPID=1)로 남아 몇 시간이고 계속
+        쏨. 궤적 데이터는 멀쩡한데 화면만 깨지므로 데이터 쪽을 봐서는 안 나옴.
+
+            ps -ef | grep -E 'printer_state_node|gcode_player|mock_publisher'
+            pkill -f voron24_                # 확인 후 정리
+
+        `count_publishers` 에는 자기 자신이 포함되므로 1 초과가 곧 "남이 있음".
+        """
+        others = self.count_publishers(STATE_TOPIC) - 1
+        if others > 0:
+            if not self._dup_warned:
+                self._dup_warned = True
+                self.get_logger().error(
+                    f'{STATE_TOPIC} 에 다른 발행자가 {others} 개 더 있음 — 이 토픽은 '
+                    '단독 소유가 전제. 포즈가 두 좌표 사이를 오가면 그 탓이며 '
+                    '대개 앞 실행의 고아 노드임: '
+                    "ps -ef | grep voron24_ 로 확인 후 pkill -f voron24_")
+        elif self._dup_warned:
+            self._dup_warned = False
+            self.get_logger().info(f'{STATE_TOPIC} 발행자가 다시 하나가 됨')
+
     # ------------------------------------------------------------------
     def publish_status(self):
-        """5Hz. 진행률·파일명을 아는 쪽은 값 소스이므로 남이 잡고 있으면 물러난다.
+        """5Hz. 진행률·파일명을 아는 쪽은 값 소스이므로 남이 잡고 있으면 물러남.
 
-        `source:=gcode` 에서는 gcode_player 도 같은 토픽에 5Hz 로 쏜다. 발행자가 둘이면
-        Unity 가 두 흐름을 번갈아 받아 progress 가 0 과 실제 값 사이로 튄다.
-        `count_publishers` 에는 자기 자신이 포함되므로 1 초과가 곧 "남이 있음".
+        source:=gcode 에서는 gcode_player 도 같은 토픽에 5Hz 로 쏨. 발행자가 둘이면
+        Unity 가 두 흐름 번갈아 받아 progress 가 0 과 실제 값 사이로 튐.
+        count_publishers 에는 자기 자신 포함이므로 1 초과가 곧 "남이 있음".
         """
         if self.status_pub is None:
             return

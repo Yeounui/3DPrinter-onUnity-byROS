@@ -2,7 +2,7 @@
 """
 slicer_node.py
 ==============
-STL -> G-code 슬라이싱 액션 서버 (docs/04b_gcode_pipeline.md §6).
+STL -> G-code 슬라이싱 action server (docs/04b_gcode_pipeline.md §6).
 
     ros2 run voron24_slicer slicer_node
     ros2 action send_goal /slice_model voron24_slicer_msgs/action/SliceModel \\
@@ -14,20 +14,18 @@ STL -> G-code 슬라이싱 액션 서버 (docs/04b_gcode_pipeline.md §6).
                                        PrusaSlicer               ▼
                                                         gcode_player_node
 
-**액션이지 서비스가 아니다.** 슬라이싱은 수십 초 걸리고 도중 취소가 가능해야 한다
-(04b §274).
+action 이지 service 가 아님. 슬라이싱은 수십 초 걸리고 도중 취소 가능해야 함 (04b §274).
 
-**libslic3r 을 링크하지 않고 subprocess 로 CLI 를 부른다.** AGPL-3.0 이라 링크하면
-라이선스가 전파된다. 별도 프로세스 exec 은 해당하지 않는다 (04b §277). 덕분에 런타임
-의존성이 순수 파이썬 + 외부 실행파일 하나로 유지되고 Boost/TBB/CGAL/OpenVDB 가 colcon
-에 얹히지 않는다.
+libslic3r 링크 없이 subprocess 로 CLI 호출. AGPL-3.0 이라 링크 시 라이선스 전파됨.
+별도 프로세스 exec 은 해당 없음 (04b §277). 런타임 의존성이 순수 파이썬 + 외부 실행파일
+하나로 유지되고 Boost/TBB/CGAL/OpenVDB 가 colcon 에 안 얹힘.
 
-**슬라이서가 없어도 노드는 뜬다.** 기동 시 경고만 남기고, goal 이 들어오면
-success=false + 설치 안내 문구를 result 로 돌려준다. launch 전체를 죽이지 않는 것이
-이 레포의 태도다 (sim.launch.py 모듈 docstring).
+슬라이서 없어도 노드는 뜸. 기동 시 경고만 남기고, goal 들어오면 success=false + 설치
+안내 문구를 result 로 돌려줌. launch 전체를 죽이지 않는 게 이 레포의 태도
+(sim.launch.py 모듈 docstring).
 
-단위 — 여기서는 아무것도 변환하지 않는다. 슬라이서 출력은 mm 절대좌표이고 mm->m 은
-gcode_player_node 가 publish 직전에 한 번만 한다 (계약 §2). 중복 변환 주의.
+단위 — 여기서는 변환 없음. 슬라이서 출력은 mm 절대좌표이고 mm->m 은
+gcode_player_node 가 publish 직전에 한 번만 함 (계약 §2). 중복 변환 주의.
 """
 import os
 import queue
@@ -48,9 +46,9 @@ from voron24_slicer.profiles import (DEFAULT_PROFILE, find_slicer,
 
 ACTION_NAME = 'slice_model'
 
-# PrusaSlicer 콘솔이 뱉는 `=> <단계>` 표시. 진행률 자체는 stdout 에 안 나오므로
-# 단계 도달을 진행률로 환산한다. 문구가 버전마다 조금씩 다르므로 부분일치로 본다.
-# 못 알아본 줄은 stage 만 갱신하고 progress 는 유지한다 — 뒤로 가는 것보다 낫다.
+# PrusaSlicer 콘솔의 `=> <단계>` 표시. 진행률 자체는 stdout 에 안 나오므로
+# 단계 도달을 진행률로 환산. 버전마다 조금씩 다르기에 문구에 따라 부분일치로 봄.
+# case 외 출력 라인은 stage 만 갱신하고 progress 유지.
 STAGES = (
     ('processing triangulated mesh', 0.10),
     ('generating perimeters',        0.25),
@@ -64,15 +62,15 @@ STAGES = (
     ('slicing finished',             0.99),
 )
 
-FEEDBACK_MIN_DELTA = 0.01       # 같은 값을 계속 쏘지 않기 위한 문턱
-POLL_S = 0.2                    # 취소 플래그 확인 주기. MoveStream.POLL_S 와 같은 값
+FEEDBACK_MIN_DELTA = 0.01       # 같은 값 반복 방지 문턱
+POLL_S = 0.2                    # 취소 플래그 확인 주기. MoveStream.POLL_S 와 동일
 
 
 class _LineReader:
-    """subprocess 의 stdout 을 별도 스레드로 읽어 큐에 넣는다.
+    """subprocess stdout 을 별도 스레드로 읽어 큐에 넣음.
 
-    `readline()` 이 블로킹이라 그대로 두면 취소 요청을 볼 틈이 없다. 파일 I/O 를
-    타이머/콜백에서 떼어내는 gcode_player_node.MoveStream 과 같은 이유·같은 모양.
+    readline() 블로킹. 취소 신호가 스트림 내에 없기에 파일 I/O 를 타이머/콜백에서 분리해 작성.
+    gcode_player_node.MoveStream 과 같은 이유·같은 모양.
     """
 
     def __init__(self, stream):
@@ -89,10 +87,10 @@ class _LineReader:
         except (OSError, ValueError):
             pass
         finally:
-            self._queue.put(None)       # 종료 sentinel
+            self._queue.put(None)       # 종료 sentinel 삽입
 
     def poll(self, timeout=POLL_S):
-        """다음 줄. 타임아웃이면 '' , 스트림 끝이면 None."""
+        """다음 줄 반환. 타임아웃이면 '', 스트림 끝이면 None."""
         try:
             return self._queue.get(timeout=timeout)
         except queue.Empty:
@@ -104,30 +102,29 @@ class SlicerNode(Node):
     def __init__(self):
         super().__init__('voron24_slicer')
 
-        # 실행파일 경로를 하드코딩하지 않는다 (04b §281).
+        # 실행파일 경로 하드코딩 금지 (04b §281).
         self.declare_parameter('slicer_executable', '')
         self.declare_parameter('profile_dir', '')
         self.declare_parameter('default_profile', DEFAULT_PROFILE)
-        # 산출물 위치. 기본은 시스템 임시 디렉터리 밑 — G-code 는 빌드 산출물이고
-        # `*.gcode` 가 LFS 대상이라 레포 트리에 떨구면 실수로 커밋될 때 무겁다.
+        # 산출물 위치. 기본은 시스템 임시 디렉터리 — G-code 는 빌드 산출물
+        # *.gcode은 LFS 대상이므로 레포 트리에 떨구면 커밋 실수 시 레포 무거워짐.
         self.declare_parameter('output_dir', '')
-        # 베드 배치를 스크립트에서 통제 (04b §292). --center 와 --dont-arrange 는
-        # 같이 주면 --dont-arrange 가 이겨 STL 원본 XY 가 그대로 쓰이므로 배타로 둔다.
-        # 기본은 중앙 정렬 — 임의의 STL 이 베드 밖에 놓이는 쪽이 더 흔한 사고다.
-        self.declare_parameter('center', '125,125')     # 250x250 베드의 한가운데
+        # 베드 배치 스크립트 통제 (04b §292). 중앙 정렬이 기본값이지만 --center 와 --dont-arrange를 함께 인자로 줘서 실행시
+        # --dont-arrange 가 우선되어 STL의 원본 XY를 기준으로 함.
+        self.declare_parameter('center', '125,125')     # 250x250 베드 한가운데
         self.declare_parameter('dont_arrange', False)
-        self.declare_parameter('extra_args', [''])      # 탈출구. 빈 문자열은 무시
+        self.declare_parameter('extra_args', [''])      # 탈출구. 빈 문자열 무시
         self.declare_parameter('timeout_s', 900.0)
 
-        self._proc = None                # 실행 중인 슬라이서. 취소가 여기로 신호를 보냄
-        self._busy = threading.Lock()    # 동시 goal 방지
+        self._proc = None                # 실행 중인 슬라이서. 취소 신호 전달 대상
+        self._busy = threading.Lock()    # 동시 goal 방지용
 
         self._server = ActionServer(
             self, SliceModel, ACTION_NAME,
             execute_callback=self.execute,
             goal_callback=self.on_goal,
             cancel_callback=self.on_cancel,
-            # execute 가 몇십 초 블로킹하는 동안에도 취소 콜백이 돌아야 한다.
+            # execute 수십 초 블로킹 중에도 취소 콜백이 돌아야 함.
             callback_group=ReentrantCallbackGroup())
 
         slicer = find_slicer(self.get_parameter('slicer_executable').value)
@@ -141,16 +138,16 @@ class SlicerNode(Node):
 
     # ------------------------------------------------------------------
     def on_goal(self, goal_request):
-        """동시 슬라이싱은 거부. CPU 를 나눠 쓰면 둘 다 느려지고 진행률이 뒤섞인다."""
+        """동시 슬라이싱 거부. CPU 독립 점유."""
         if self._busy.locked():
-            self.get_logger().warn('이미 슬라이싱 중 — goal 거부')
+            self.get_logger().warn('Slicing in progress — goal denied')
             return GoalResponse.REJECT
         return GoalResponse.ACCEPT
 
     def on_cancel(self, goal_handle):
         proc = self._proc
         if proc is not None and proc.poll() is None:
-            self.get_logger().info('취소 요청 — 슬라이서 프로세스 종료')
+            self.get_logger().info('Cancel requested — Slicer process terminated')
             proc.terminate()
         return CancelResponse.ACCEPT
 
@@ -171,18 +168,18 @@ class SlicerNode(Node):
             self.get_logger().error(err)
             return result
 
-        self.get_logger().info('실행: ' + ' '.join(cmd))
-        self._publish(goal_handle, 0.02, '슬라이서 기동')
+        self.get_logger().info('Executed: ' + ' '.join(cmd))
+        self._publish(goal_handle, 0.02, 'Slicer executed')
 
         try:
-            # stderr 를 stdout 으로 합친다. PrusaSlicer 는 단계 표시를 양쪽에 섞어
-            # 뱉는 버전이 있어 한 스트림으로 봐야 진행률이 끊기지 않는다.
+            # stderr와 stdout을 합쳐 출력.
+            # PrusaSlicer 는 양쪽에서 출력하는 버전이 있어 한 스트림으로 봐야 진행률이 안 끊김.
             self._proc = subprocess.Popen(
                 cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
                 text=True, bufsize=1)
         except OSError as exc:
             goal_handle.abort()
-            result.message = f'슬라이서 실행 실패: {exc}'
+            result.message = f'Slicer execution failed: {exc}'
             self.get_logger().error(result.message)
             return result
 
@@ -192,48 +189,48 @@ class SlicerNode(Node):
 
         if canceled:
             goal_handle.canceled()
-            result.message = '취소됨'
+            result.message = 'Cancelled'
             return result
 
         if code != 0:
             goal_handle.abort()
-            result.message = (f'슬라이서가 exit {code} 로 종료. '
-                              f'마지막 출력: {tail or "(없음)"}')
+            result.message = (f'Slicer exit {code}. '
+                              f'Last output: {tail or "(NA))"}')
             self.get_logger().error(result.message)
             return result
 
         if not os.path.isfile(out_path):
             goal_handle.abort()
-            result.message = (f'슬라이서는 성공했는데 산출물이 없음: {out_path}. '
-                              f'마지막 출력: {tail or "(없음)"}')
+            result.message = (f'Slicer succeed but no output: {out_path}. '
+                              f'Last output: {tail or "(NA)"}')
             self.get_logger().error(result.message)
             return result
 
-        self._publish(goal_handle, 1.0, '완료')
+        self._publish(goal_handle, 1.0, 'Complete')
         goal_handle.succeed()
         result.success = True
         result.gcode_path = out_path
         result.message = f'{os.path.getsize(out_path)} bytes -> {out_path}'
-        self.get_logger().info('슬라이싱 완료: ' + result.message)
+        self.get_logger().info('Slicing Complete: ' + result.message)
         return result
 
     # ------------------------------------------------------------------
     def _build_command(self, request):
-        """(cmd, 산출물경로, 에러문구). 에러문구가 None 이 아니면 나머지는 무의미."""
+        """(cmd, 산출물경로, 에러문구). 에러문구 None 아니면 나머지 무의미."""
         slicer = find_slicer(self.get_parameter('slicer_executable').value)
         if slicer is None:
             return None, None, missing_slicer_message()
 
         stl = os.path.abspath(os.path.expanduser(request.stl_path or ''))
         if not request.stl_path:
-            return None, None, 'goal 에 stl_path 가 없음'
+            return None, None, 'No stl_path exists'
         if not os.path.isfile(stl):
-            return None, None, f'STL 이 없음: {stl}'
+            return None, None, f'No STL exists: {stl}'
 
         name = request.profile or self.get_parameter('default_profile').value
         ini = resolve_profile(name, self.get_parameter('profile_dir').value)
         if ini is None:
-            return None, None, (f'프로파일 {name!r} 을 못 찾음. 탐색 경로: '
+            return None, None, (f'Profile {name!r} not found. Explored path: '
                                 f'{profile_dirs(self.get_parameter("profile_dir").value)} '
                                 f'(04b §294 — tools/slicer/voron24_250.ini)')
 
@@ -242,10 +239,10 @@ class SlicerNode(Node):
         try:
             os.makedirs(out_dir, exist_ok=True)
         except OSError as exc:
-            return None, None, f'출력 디렉터리를 못 만듦: {out_dir} ({exc})'
+            return None, None, f'Cannot create output directory: {out_dir} ({exc})'
         stem = os.path.splitext(os.path.basename(stl))[0]
-        # 같은 STL 을 다시 슬라이싱하면 덮어쓴다. 임시 파일이 쌓이는 편이 나쁘고,
-        # 동시 goal 은 on_goal 에서 이미 막았으므로 충돌하지 않는다.
+        # 동일 STL 재슬라이싱 시 덮어씀. 임시 파일 쌓이는 것 방지.
+        # 동시 goal 은 on_goal 에서 이미 막았으므로 충돌 없음.
         out_path = os.path.join(out_dir, f'{stem}.gcode')
 
         cmd = [slicer, '--export-gcode', '--load', ini, '-o', out_path]
@@ -260,11 +257,11 @@ class SlicerNode(Node):
         return cmd, out_path, None
 
     def _pump(self, goal_handle, proc):
-        """stdout 을 흘려 보내며 feedback 을 쏘고 취소를 감시. (마지막 줄, 취소됨)."""
+        """stdout 흘려 보내며 feedback 발행 + 취소 감시. (마지막 줄, 취소여부) 반환."""
         reader = _LineReader(proc.stdout)
         progress = 0.02
         last_sent = 0.0
-        stage = '슬라이싱'
+        stage = 'Slicing'
         tail = ''
         deadline = self.get_clock().now().nanoseconds * 1e-9 + \
             float(self.get_parameter('timeout_s').value)
@@ -280,13 +277,13 @@ class SlicerNode(Node):
                 return tail, True
 
             if self.get_clock().now().nanoseconds * 1e-9 > deadline:
-                self.get_logger().error('timeout_s 초과 — 슬라이서 강제 종료')
+                self.get_logger().error('timeout_s exceeded — forced shutdown')
                 proc.kill()
                 return tail + ' (timeout)', False
 
             line = reader.poll()
             if line is None:
-                break                       # 스트림 끝. 종료 코드는 호출자가 본다
+                break                       # 스트림 끝. 종료 코드는 호출자가 봄
             if not line:
                 continue                    # 타임아웃 틱 — 위의 취소 검사가 목적
             tail = line
@@ -312,7 +309,7 @@ class SlicerNode(Node):
 def main(args=None):
     rclpy.init(args=args)
     node = SlicerNode()
-    # execute 가 블로킹하는 동안 취소 콜백이 돌아야 하므로 단일 스레드로는 안 된다.
+    # execute 블로킹 중 취소 콜백이 돌아야 하므로 단일 스레드 불가.
     executor = MultiThreadedExecutor()
     try:
         rclpy.spin(node, executor=executor)

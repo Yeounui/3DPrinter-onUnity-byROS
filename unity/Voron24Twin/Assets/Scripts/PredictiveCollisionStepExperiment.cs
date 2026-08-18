@@ -3,9 +3,9 @@ using System.Collections.Generic;
 using UnityEngine;
 
 /// <summary>
-/// 후보 위치를 실제로 확정하기 전에 Collider 쌍을 검사하는
+/// 후보 위치 확정 전 Collider 쌍 검사하는
 /// 단일 축·단일 스텝 충돌 예측 실험 스크립트.
-/// GeometrySliderConstraint는 유지하고 GeometrySliderTravelClamp는 사용하지 않는다.
+/// GeometrySliderConstraint 유지, GeometrySliderTravelClamp 미사용.
 /// </summary>
 public class PredictiveCollisionStepExperiment : MonoBehaviour
 {
@@ -23,13 +23,13 @@ public class PredictiveCollisionStepExperiment : MonoBehaviour
     public bool returnToStart = true;
 
     [Header("Collision Roots")]
-    [Tooltip("이동 링크의 Collision GameObject. 하위 Collider를 자동 수집합니다.")]
+    [Tooltip("이동 링크 Collision GameObject. 하위 Collider 자동 수집")]
     public Transform movingCollisionRoot;
 
-    [Tooltip("충돌 검사 대상 링크의 Collision GameObject. 하위 Collider를 자동 수집합니다.")]
+    [Tooltip("충돌 검사 대상 링크 Collision GameObject. 하위 Collider 자동 수집")]
     public Transform obstacleCollisionRoot;
 
-    [Tooltip("Trigger Collider를 충돌 검사에 포함합니다.")]
+    [Tooltip("Trigger Collider 충돌 검사 포함")]
     public bool includeTriggers;
 
     private Coroutine experimentRoutine;
@@ -64,7 +64,7 @@ public class PredictiveCollisionStepExperiment : MonoBehaviour
     {
         if (experimentRoutine != null)
         {
-            Debug.LogWarning("[PredictiveCollisionStepExperiment] 이미 실험이 진행 중입니다.", this);
+            Debug.LogWarning("[PredictiveCollisionStepExperiment] 실험 이미 진행 중", this);
             return;
         }
 
@@ -95,7 +95,7 @@ public class PredictiveCollisionStepExperiment : MonoBehaviour
             Physics.SyncTransforms();
 
             Debug.Log(
-                "[PredictiveCollisionStepExperiment] 충돌 없음: 후보 위치를 확정했습니다.",
+                "[PredictiveCollisionStepExperiment] 충돌 없음 — 후보 위치 확정",
                 this);
 
             yield return new WaitForSeconds(holdDuration);
@@ -108,12 +108,12 @@ public class PredictiveCollisionStepExperiment : MonoBehaviour
                 {
                     movingBody.position = startPosition;
                     Physics.SyncTransforms();
-                    Debug.Log("[PredictiveCollisionStepExperiment] 원래 위치로 복귀했습니다.", this);
+                    Debug.Log("[PredictiveCollisionStepExperiment] 원위치 복귀 완료", this);
                 }
                 else
                 {
                     Debug.LogWarning(
-                        "[PredictiveCollisionStepExperiment] 복귀 후보가 충돌하여 현재 위치를 유지합니다. " +
+                        "[PredictiveCollisionStepExperiment] 복귀 후보 충돌로 현재 위치 유지. " +
                         returnCollisionLog,
                         this);
                 }
@@ -122,7 +122,7 @@ public class PredictiveCollisionStepExperiment : MonoBehaviour
         else
         {
             Debug.Log(
-                "[PredictiveCollisionStepExperiment] 충돌 예상: 후보 위치로 이동하지 않았습니다. " +
+                "[PredictiveCollisionStepExperiment] 충돌 예상 — 후보 위치 이동 안 함. " +
                 collisionLog,
                 this);
         }
@@ -147,8 +147,8 @@ public class PredictiveCollisionStepExperiment : MonoBehaviour
                 if (!IsUsableCollider(obstacleCollider))
                     continue;
 
-                // 같은 Collision 루트 안의 Collider끼리는 내부 부품 접촉으로 보고
-                // 링크 간 충돌 후보로 검사하지 않습니다.
+                // 같은 Collision 루트 내 Collider끼리는 내부 부품 접촉으로 간주
+                // 링크 간 충돌 후보에서 제외
                 if (GetCollisionRoot(movingCollider) == GetCollisionRoot(obstacleCollider))
                     continue;
 
@@ -194,43 +194,43 @@ public class PredictiveCollisionStepExperiment : MonoBehaviour
     {
         if (sliderConstraint == null)
         {
-            Debug.LogError("[PredictiveCollisionStepExperiment] Slider Constraint 참조가 없습니다.", this);
+            Debug.LogError("[PredictiveCollisionStepExperiment] Slider Constraint 참조 없음", this);
             return false;
         }
 
         if (!sliderConstraint.enabled)
         {
-            Debug.LogError("[PredictiveCollisionStepExperiment] GeometrySliderConstraint가 켜져 있어야 합니다.", this);
+            Debug.LogError("[PredictiveCollisionStepExperiment] GeometrySliderConstraint enabled 필수", this);
             return false;
         }
 
         if (sliderConstraint.fixedReferenceFrame == null)
         {
-            Debug.LogError("[PredictiveCollisionStepExperiment] Fixed Reference Frame 참조가 없습니다.", this);
+            Debug.LogError("[PredictiveCollisionStepExperiment] Fixed Reference Frame 참조 없음", this);
             return false;
         }
 
         if (movingBody == null)
         {
-            Debug.LogError("[PredictiveCollisionStepExperiment] Moving Body 참조가 없습니다.", this);
+            Debug.LogError("[PredictiveCollisionStepExperiment] Moving Body 참조 없음", this);
             return false;
         }
 
         if (movingCollisionRoot == null)
         {
-            Debug.LogError("[PredictiveCollisionStepExperiment] Moving Collision Root 참조가 없습니다.", this);
+            Debug.LogError("[PredictiveCollisionStepExperiment] Moving Collision Root 참조 없음", this);
             return false;
         }
 
         if (obstacleCollisionRoot == null)
         {
-            Debug.LogError("[PredictiveCollisionStepExperiment] Obstacle Collision Root 참조가 없습니다.", this);
+            Debug.LogError("[PredictiveCollisionStepExperiment] Obstacle Collision Root 참조 없음", this);
             return false;
         }
 
         if (movingCollisionRoot == obstacleCollisionRoot)
         {
-            Debug.LogError("[PredictiveCollisionStepExperiment] Moving과 Obstacle은 서로 다른 Collision Root여야 합니다.", this);
+            Debug.LogError("[PredictiveCollisionStepExperiment] Moving과 Obstacle Collision Root 동일 불가", this);
             return false;
         }
 
@@ -246,7 +246,7 @@ public class PredictiveCollisionStepExperiment : MonoBehaviour
         obstacleColliders.AddRange(obstacleCollisionRoot.GetComponentsInChildren<Collider>(true));
 
         Debug.Log(
-            $"[PredictiveCollisionStepExperiment] Collider 자동 수집 | " +
+            $"[PredictiveCollisionStepExperiment] | " +
             $"MovingRoot={movingCollisionRoot.name}: {movingColliders.Count}, " +
             $"ObstacleRoot={obstacleCollisionRoot.name}: {obstacleColliders.Count}",
             this);

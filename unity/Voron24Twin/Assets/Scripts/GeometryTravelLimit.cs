@@ -3,7 +3,7 @@ using UnityEngine;
 public class GeometryTravelLimit : MonoBehaviour
 {
     [Header("Reference Frame")]
-    [Tooltip("Slider 자유축은 이 ReferenceFrame의 local X(right)를 사용함")]
+    [Tooltip("Slider 자유축: 이 ReferenceFrame의 local X(right) 사용")]
     public Transform fixedReferenceFrame;
 
     [Header("Rail End A")]
@@ -102,26 +102,26 @@ public class GeometryTravelLimit : MonoBehaviour
         if (fixedReferenceFrame == null)
             missing.Add("FixedReferenceFrame");
         if (!hasRailEndA)
-            missing.Add("RailEndA 선택 플래그");
+            missing.Add("RailEndA 선택");
         if (railEndAMeshFilter == null)
             missing.Add("RailEndA MeshFilter");
         if (!hasRailEndB)
-            missing.Add("RailEndB 선택 플래그");
+            missing.Add("RailEndB 선택");
         if (railEndBMeshFilter == null)
             missing.Add("RailEndB MeshFilter");
         if (!hasBlockEndA)
-            missing.Add("BlockEndA 선택 플래그");
+            missing.Add("BlockEndA 선택");
         if (blockEndAMeshFilter == null)
             missing.Add("BlockEndA MeshFilter");
         if (!hasBlockEndB)
-            missing.Add("BlockEndB 선택 플래그");
+            missing.Add("BlockEndB 선택");
         if (blockEndBMeshFilter == null)
             missing.Add("BlockEndB MeshFilter");
 
         if (missing.Count == 0)
-            return "검증 실패 원인을 확인할 수 없습니다.";
+            return "검증 실패 원인 불명";
 
-        return "누락 항목: " + string.Join(", ", missing);
+        return "누락: " + string.Join(", ", missing);
     }
 
     public bool TryGetProjectedLimits(

@@ -8,8 +8,8 @@ using UnityEditor;
 #endif
 
 /// <summary>
-/// Play 상태의 조립 결과를 기준으로 STL과 위치 로그를 함께 생성합니다.
-/// STL과 로그는 동일한 assemblyFrame, box_0 중심 규칙, 축 방향 설정을 공유합니다.
+/// Play 상태 조립 결과 기준 STL + 위치 로그 생성.
+/// assemblyFrame, box_0 중심 규칙, 축 방향 설정 공유.
 /// </summary>
 public class AssemblyStlTool : MonoBehaviour
 {
@@ -56,7 +56,7 @@ public class AssemblyStlTool : MonoBehaviour
         BoxCollider centerBox = collision ? FindBoxCollider(collision, centerColliderName) : null;
         if (!centerBox)
         {
-            ShowError("STL 중심 계산을 위한 Collision/" + centerColliderName + "을(를) 찾지 못했습니다.");
+            ShowError("STL 중심 계산용 Collision/" + centerColliderName + " 없음");
             return;
         }
 
@@ -72,7 +72,7 @@ public class AssemblyStlTool : MonoBehaviour
 
         if (triangles.Count == 0)
         {
-            ShowError("내보낼 BoxCollider 또는 읽을 수 있는 MeshCollider를 찾지 못했습니다.");
+            ShowError("내보낼 BoxCollider 또는 읽기 가능한 MeshCollider 없음");
             return;
         }
 
@@ -85,12 +85,12 @@ public class AssemblyStlTool : MonoBehaviour
         {
             Directory.CreateDirectory(ResolvedStlDirectory);
             WriteBinaryStl(path, vertices, triangles);
-            Debug.Log("Assembly STL 생성 완료: " + path, this);
+            Debug.Log("Assembly STL 생성 완료 " + path, this);
             EditorUtility.RevealInFinder(path);
         }
         catch (Exception exception)
         {
-            ShowError("STL 저장 실패: " + exception.Message);
+            ShowError("STL 저장 실패 " + exception.Message);
         }
     }
 
@@ -99,7 +99,7 @@ public class AssemblyStlTool : MonoBehaviour
         if (!ValidatePlayState() || !ValidateReferences(assemblyFrame)) return;
         if (linksForLogs == null || linksForLogs.Count == 0)
         {
-            ShowError("위치 로그를 생성할 링크 목록이 비어 있습니다.");
+            ShowError("위치 로그 대상 링크 목록 비어 있음");
             return;
         }
 
@@ -108,7 +108,7 @@ public class AssemblyStlTool : MonoBehaviour
         {
             if (!link)
             {
-                ShowError("위치 로그 링크 목록에 비어 있는 항목이 있습니다.");
+                ShowError("위치 로그 링크 목록에 빈 항목 존재");
                 return;
             }
 
@@ -116,7 +116,7 @@ public class AssemblyStlTool : MonoBehaviour
             BoxCollider centerBox = collision ? FindBoxCollider(collision, centerColliderName) : null;
             if (!centerBox)
             {
-                ShowError(link.name + "에서 Collision/" + centerColliderName + "을(를) 찾지 못했습니다.");
+                ShowError(link.name + "에서 Collision/" + centerColliderName + " 없음");
                 return;
             }
 
@@ -135,13 +135,13 @@ public class AssemblyStlTool : MonoBehaviour
                 Vector3 relative = ApplyCoordinateDirection(record.center - baseRecord.center);
                 string path = Path.Combine(directory, record.link.name + logFileNameSuffix);
                 File.WriteAllText(path, BuildLog(record, baseRecord, relative));
-                Debug.Log("Assembly 위치 로그 생성 완료: " + path, record.link);
+                Debug.Log("Assembly 위치 로그 생성 완료 " + path, record.link);
             }
             EditorUtility.RevealInFinder(directory);
         }
         catch (Exception exception)
         {
-            ShowError("위치 로그 저장 실패: " + exception.Message);
+            ShowError("위치 로그 저장 실패 " + exception.Message);
         }
     }
 
@@ -149,8 +149,8 @@ public class AssemblyStlTool : MonoBehaviour
     {
         if (!assemblyFrame) assemblyFrame = FindSceneTransform("base_link");
 
-        // 컴포넌트를 Collision 또는 그 하위 객체에 붙인 경우,
-        // 해당 Collision을 소유한 링크를 STL 대상 링크로 사용합니다.
+        // Collision 또는 하위 객체에 컴포넌트를 붙인 경우,
+        // 해당 Collision 소유 링크를 STL 대상으로 사용
         Transform componentOwner = FindOwningLink(transform);
         if (componentOwner)
             linkToExport = componentOwner;
@@ -168,14 +168,14 @@ public class AssemblyStlTool : MonoBehaviour
     private bool ValidatePlayState()
     {
         if (!requirePlayMode || EditorApplication.isPlaying) return true;
-        ShowError("현재 설정은 Play 상태에서만 실행됩니다. 먼저 Play를 시작하세요.");
+        ShowError("Play 상태에서만 실행 가능. Play 먼저 시작 필요");
         return false;
     }
 
     private bool ValidateReferences(Transform required)
     {
         if (assemblyFrame && required) return true;
-        ShowError("Assembly Frame과 대상 링크를 Inspector에서 지정하세요.");
+        ShowError("Assembly Frame과 대상 링크 Inspector 지정 필요");
         return false;
     }
 
@@ -416,7 +416,7 @@ public class AssemblyStlTool : MonoBehaviour
     private static void ShowError(string message)
     {
         Debug.LogWarning("[AssemblyStlTool] " + message);
-        EditorUtility.DisplayDialog("Assembly STL Tool", message, "확인");
+        EditorUtility.DisplayDialog("Assembly STL Tool", message, "OK");
     }
 
     private sealed class CenterRecord

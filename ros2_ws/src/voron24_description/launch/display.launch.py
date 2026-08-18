@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""RViz + joint_state_publisher_gui 로 URDF 를 눈으로 검증한다.
+"""RViz + joint_state_publisher_gui 로 URDF 눈으로 검증.
 
     # mock (박스)
     ros2 launch voron24_description display.launch.py
@@ -26,9 +26,9 @@ def generate_launch_description():
 
     return LaunchDescription([
         DeclareLaunchArgument('use_meshes', default_value='false',
-                              description='true 면 meshes/ 의 STL 사용, false 면 mock 박스'),
+                              description='true 면 meshes/ STL 사용, false 면 mock 박스'),
         DeclareLaunchArgument('gui', default_value='true',
-                              description='joint_state_publisher_gui 슬라이더 사용'),
+                              description='joint_state_publisher_gui 슬라이더 활성화'),
 
         Node(package='robot_state_publisher', executable='robot_state_publisher',
              output='screen',

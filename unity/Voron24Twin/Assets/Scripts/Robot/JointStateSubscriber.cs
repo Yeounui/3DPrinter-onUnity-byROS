@@ -7,8 +7,8 @@ using RosJointState = RosMessageTypes.Sensor.JointStateMsg;
 namespace Voron24.Robot
 {
     /// <summary>
-    /// ROS2의 /joint_states를 구독하여
-    /// Voron 2.4의 ArticulationBody를 구동한다.
+    /// ROS2 /joint_states 구독,
+    /// Voron 2.4 ArticulationBody 구동.
     ///
     /// 단위 규약:
     /// - ROS prismatic joint: m
@@ -16,9 +16,9 @@ namespace Voron24.Robot
     /// - Unity prismatic joint: m
     /// - Unity revolute joint: degree
     ///
-    /// 조인트는 이름으로 자동 탐색한다. URDF-Importer 는 GameObject 를 **링크명**으로
-    /// 만들고 조인트명은 UrdfJoint.jointName 에 보관하므로, GameObject 이름 -> UrdfJoint
-    /// 순서로 찾는다. 덕분에 메시 교체 후 재임포트해도 Inspector 재연결이 필요 없다.
+    /// 조인트를 이름으로 자동 탐색. URDF-Importer는 GameObject를 **링크명**으로
+    /// 만들고 조인트명은 UrdfJoint.jointName에 보관. GameObject 이름 -> UrdfJoint
+    /// 순서로 탐색. 메시 교체 재임포트 후에도 Inspector 재연결 불필요.
     /// </summary>
     public class JointStateSubscriber : MonoBehaviour
     {
@@ -31,7 +31,7 @@ namespace Voron24.Robot
         [SerializeField]
         private Transform robotRoot;
 
-        [Tooltip("ROS /joint_states에서 사용하는 조인트 이름")]
+        [Tooltip("ROS /joint_states 조인트 이름")]
         [SerializeField]
         private string[] jointNames =
         {
@@ -40,7 +40,7 @@ namespace Voron24.Robot
             "joint_z"
         };
 
-        [Tooltip("각 ROS 조인트와 연결되는 Unity 링크 이름")]
+        [Tooltip("각 ROS 조인트에 대응하는 Unity 링크 이름")]
         [SerializeField]
         private string[] linkNames =
         {
@@ -59,9 +59,9 @@ namespace Voron24.Robot
         }
 
         [Header("Drive")]
-        [Tooltip("xDrive 게인. URDF-Importer 는 stiffness 를 0 으로 임포트하므로 " +
-                 "여기서 넣지 않으면 target 을 줘도 조인트가 따라가지 않는다. " +
-                 "값의 출처는 docs/02_unity_workflow.md '드라이브 게인 튜닝'.")]
+        [Tooltip("xDrive 게인. URDF-Importer는 stiffness를 0으로 임포트하므로 " +
+                 "여기서 넣지 않으면 target 설정해도 조인트 미반응. " +
+                 "값 출처: docs/02_unity_workflow.md '드라이브 게인 튜닝'.")]
         [SerializeField]
         DriveGain[] driveGains =
         {
@@ -71,20 +71,20 @@ namespace Voron24.Robot
         };
 
         [Header("Collision")]
-        [Tooltip("로봇 내부 링크끼리의 충돌을 끈다. URDF 의 collision 박스는 서로 " +
-                 "파고들어 있어서 켜 두면 조인트가 리밋에 물려 아예 움직이지 않는다. " +
-                 "이 트윈은 /joint_states 를 그대로 재생하는 것이 목적이라 자기충돌은 필요 없다.")]
+        [Tooltip("로봇 내부 링크 간 충돌 off. URDF collision 박스가 서로 " +
+                 "파고들어 있어 on 시 조인트가 limit에 걸려 움직이지 않음. " +
+                 "이 트윈은 /joint_states 그대로 재생이 목적이라 자기충돌 불필요.")]
         [SerializeField] bool disableSelfCollision = true;
 
         [Header("Mode")]
         [Tooltip(
-            "체크하면 ArticulationBody 물리를 우회하고 " +
-            "Transform을 직접 이동시킨다.")]
+            "체크 시 ArticulationBody 물리 우회, " +
+            "Transform 직접 이동")]
         [SerializeField]
         private bool kinematicMode = true;
 
         [Header("Smoothing")]
-        [Tooltip("목표 위치 보간 시간. 0이면 보간하지 않는다.")]
+        [Tooltip("목표 위치 보간 시간. 0이면 보간 안 함")]
         [SerializeField]
         private float smoothTime = 0.02f;
 
@@ -144,7 +144,7 @@ namespace Voron24.Robot
         }
 
         /// <summary>
-        /// ROS 조인트 이름과 Unity 링크 객체를 연결한다.
+        /// ROS 조인트 이름 ↔ Unity 링크 객체 연결.
         /// </summary>
         public void Bind()
         {
@@ -154,8 +154,8 @@ namespace Voron24.Robot
             if (robotRoot == null)
             {
                 Debug.LogError(
-                    "[JointState] Robot Root가 비어 있습니다. " +
-                    "Hierarchy의 voron24 객체를 연결하십시오.");
+                    "[JointState] Robot Root 비어 있음. " +
+                    "Hierarchy voron24 객체 연결 필요");
 
                 return;
             }
@@ -163,7 +163,7 @@ namespace Voron24.Robot
             if (jointNames == null || linkNames == null)
             {
                 Debug.LogError(
-                    "[JointState] Joint Names 또는 Link Names가 없습니다.");
+                    "[JointState] Joint Names 또는 Link Names 없음");
 
                 return;
             }
@@ -171,7 +171,7 @@ namespace Voron24.Robot
             if (jointNames.Length != linkNames.Length)
             {
                 Debug.LogError(
-                    "[JointState] Joint Names 와 Link Names 의 개수가 다릅니다. " +
+                    "[JointState] Joint Names / Link Names 개수 불일치. " +
                     $"jointNames={jointNames.Length}, linkNames={linkNames.Length}");
 
                 return;
@@ -197,9 +197,9 @@ namespace Voron24.Robot
 
                 if (linkTransform == null)
                 {
-                    Debug.LogError($"[JointState] '{linkName}' 링크를 찾을 수 없습니다 " +
+                    Debug.LogError($"[JointState] '{linkName}' 링크 없음 " +
                                    $"(조인트 '{jointName}'). " +
-                                   $"URDF 의 링크 이름과 계약 section 3 을 대조하세요.");
+                                   $"URDF 링크 이름과 계약 §3 대조 필요");
                 }
                 else
                 {
@@ -212,7 +212,7 @@ namespace Voron24.Robot
                     {
                         Debug.LogError(
                             $"[JointState] '{linkName}'에 " +
-                            "ArticulationBody가 없습니다.");
+                            "ArticulationBody 없음");
                     }
                     else
                     {
@@ -238,14 +238,14 @@ namespace Voron24.Robot
                         {
                             Debug.LogError(
                                 $"[JointState] '{linkName}'의 " +
-                                "Mass가 0입니다.");
+                                "Mass 0");
                         }
                     }
                 }
 
                 joints.Add(joint);
 
-                // ROS 조인트 이름을 Dictionary 검색 키로 사용한다.
+                // ROS 조인트 이름을 Dictionary 검색 키로 사용
                 jointsByName[jointName] = joint;
             }
 
@@ -264,21 +264,21 @@ namespace Voron24.Robot
         }
 
         /// <summary>
-        /// 로봇 내부 링크 콜라이더끼리의 충돌을 전부 끈다.
+        /// 로봇 내부 링크 collider 간 충돌 전부 off.
         ///
-        /// 왜 필요한가: URDF 의 collision 지오메트리는 서로 겹치도록 그려져 있다.
-        /// base_link 의 박스가 기계 전체 부피를 감싸고 그 안에 z_gantry/x_beam/toolhead
-        /// 가 들어앉는 식이다. ArticulationBody 는 **부모-자식으로 인접한 링크끼리만**
-        /// 자동으로 충돌을 끄므로 base_link ↔ x_beam 처럼 한 다리 건넌 쌍은 그대로
-        /// 충돌한다. 완전히 파묻힌 상태라 PhysX 가 밀어내기(depenetration)를 계속 걸고,
-        /// 그 결과 조인트가 lower 리밋 0 에 물려 target 을 줘도 위치가 0 에서 안 움직인다.
-        /// 증상이 "bound 3/3 인데 로봇이 가만히 있다" 로 나오기 때문에 바인딩 실패나
-        /// 게인 0 과 구분이 잘 안 된다 — jointPosition 이 0 고정인데 jointVelocity 만
-        /// 0 이 아니면 이쪽을 의심할 것.
+        /// 이유: URDF collision geometry가 서로 겹침.
+        /// base_link 박스가 기계 전체 부피를 감싸고 그 안에 z_gantry/x_beam/toolhead
+        /// 가 들어앉는 구조. ArticulationBody는 **부모-자식 인접 링크만**
+        /// 자동으로 충돌을 끄므로 base_link ↔ x_beam 처럼 한 다리 건넌 pair은 그대로
+        /// 충돌. 완전 파묻힌 상태라 PhysX depenetration이 지속 발생,
+        /// 결과적으로 조인트가 lower limit 0에 걸려 target 설정해도 위치 0 고정.
+        /// 증상이 "bound 3/3인데 로봇 정지"로 나와서 바인딩 실패나
+        /// 게인 0과 구분 어려움 — jointPosition 0 고정에 jointVelocity만
+        /// 0 아니면 이쪽 의심.
         ///
-        /// 끄는 게 맞는 이유: 이 트윈은 /joint_states 를 그대로 재생하는 시각화다.
-        /// 자기충돌로 막아야 할 대상이 없고, 충돌 응답은 오히려 원본 궤적을 왜곡한다.
-        /// (외부 물체와의 충돌은 살아 있다 — 링크 쌍만 끄기 때문.)
+        /// off가 맞는 이유: 이 트윈은 /joint_states 그대로 재생하는 시각화.
+        /// 자기충돌 방어 대상 없고, 충돌 응답은 원본 궤적 왜곡.
+        /// (외부 물체와의 충돌은 살아 있음 — 링크 pair만 끄기 때문.)
         /// </summary>
         void DisableSelfCollision()
         {
@@ -288,52 +288,52 @@ namespace Voron24.Robot
                     Physics.IgnoreCollision(cols[i], cols[k], true);
 
             if (verbose && cols.Length > 1)
-                Debug.Log($"[JointState] 자기충돌 해제: 콜라이더 {cols.Length} 개, " +
-                          $"{cols.Length * (cols.Length - 1) / 2} 쌍");
+                Debug.Log($"[JointState] 자기충돌 해제 — collider {cols.Length} 개 " +
+                          $"{cols.Length * (cols.Length - 1) / 2} pair");
         }
 
         /// <summary>
-        /// 계약 section 3 의 조인트 이름으로 해당 조인트가 구동하는 링크를 찾는다.
+        /// 계약 §3 조인트 이름으로 해당 조인트 구동 링크 탐색.
         ///
-        /// URDF 는 링크와 조인트를 별개 엔티티로 두지만, Unity 의 ArticulationBody 는
-        /// "강체 + 그것을 부모에 매다는 조인트" 를 하나로 합친다. 조인트가 독립 객체로
-        /// 존재하지 않고 **자식 링크의 속성**이다. 그래서 URDF-Importer 는 GameObject 를
-        /// 링크명으로 만들고, 갈 곳이 없어진 조인트명은 UrdfJoint.jointName 에 보관한다.
+        /// URDF는 링크/조인트를 별개 entity로 두지만, Unity ArticulationBody는
+        /// "강체 + 부모에 매다는 조인트"를 하나로 합침. 조인트가 독립 객체로
+        /// 존재하지 않고 **자식 링크의 속성**. URDF-Importer는 GameObject를
+        /// 링크명으로 만들고 조인트명은 UrdfJoint.jointName에 보관.
         ///
-        /// 규칙: 조인트는 자기 **자식 링크**의 GameObject 에 얹힌다.
+        /// 규칙: 조인트는 자기 **자식 링크** GameObject에 부착.
         ///
-        ///   joint_z -> z_gantry   (base_link 를 부모로)
-        ///   joint_y -> x_beam     (z_gantry  를 부모로)
-        ///   joint_x -> toolhead   (x_beam    를 부모로)
+        ///   joint_z -> z_gantry   (parent: base_link)
+        ///   joint_y -> x_beam     (parent: z_gantry)
+        ///   joint_x -> toolhead   (parent: x_beam)
         ///
-        /// 이름이 엇갈려 보이는 것은 CoreXY 구조 그대로다. X 빔이 Y 축을 따라 움직이고,
-        /// 툴헤드가 그 빔 위에서 X 축을 따라 움직인다.
+        /// 이름이 엇갈려 보이는 것은 CoreXY 구조 그대로. X beam이 Y축을 따라 이동,
+        /// toolhead가 그 beam 위에서 X축을 따라 이동.
         ///
-        /// 주의: jointNames 를 링크명으로 바꿔 해결하려 하지 말 것. 같은 문자열이
-        /// _byName 의 키로도 쓰이는데 그쪽은 /joint_states 의 msg.name("joint_x") 과
-        /// 대조된다. 키는 계약상 조인트명으로 고정하고 탐색 단계에서만 링크로 번역한다.
+        /// 주의: jointNames를 링크명으로 바꿔 해결 시도 금지. 같은 문자열이
+        /// _byName의 키로도 쓰이는데 그쪽은 /joint_states msg.name("joint_x")과
+        /// 대조됨. 키는 계약상 조인트명 고정, 탐색 단계에서만 링크로 번역.
         ///
-        /// 부수 효과: 링크명이 바뀌어도 조인트명만 계약과 맞으면 계속 바인딩된다.
+        /// 부수 효과: 링크명 변경돼도 조인트명만 계약과 일치하면 바인딩 유지.
         /// </summary>
         static Transform FindByUrdfJointName(Transform root, string jointName)
         {
-            // UrdfJoint 는 추상 클래스 — Prismatic/Revolute/Fixed 를 모두 잡는다.
+            // UrdfJoint는 추상 클래스 — Prismatic/Revolute/Fixed 전부 포착
             foreach (var uj in root.GetComponentsInChildren<UrdfJoint>(true))
                 if (uj.jointName == jointName) return uj.transform;
             return null;
         }
 
         /// <summary>
-        /// xDrive 게인 주입. URDF 에는 stiffness/damping 개념이 없어 임포트 직후 0 이고,
-        /// 그 상태로는 target 을 써도 힘이 나오지 않는다. 재임포트해도 코드가 다시 채운다.
+        /// xDrive 게인 주입. URDF에 stiffness/damping 개념 없어 임포트 직후 0,
+        /// 그 상태로는 target 써도 힘 발생 안 함. 재임포트 시 코드가 재주입.
         /// </summary>
         void ApplyDriveGain(ArticulationBody body, string jointName)
         {
             var g = System.Array.Find(driveGains, x => x.joint == jointName);
             if (g.stiffness <= 0f)
             {
-                Debug.LogWarning($"[JointState] '{jointName}' 의 드라이브 게인이 없습니다. " +
-                                 $"stiffness 0 이면 조인트가 목표를 따라가지 않습니다.");
+                Debug.LogWarning($"[JointState] '{jointName}' drive 게인 미설정. " +
+                                 $"stiffness 0이면 조인트 목표 미반응");
                 return;
             }
 
@@ -350,7 +350,7 @@ namespace Voron24.Robot
         }
 
         /// <summary>
-        /// 지정된 이름의 자식 객체를 재귀적으로 검색한다.
+        /// 지정 이름의 자식 객체 재귀 검색.
         /// </summary>
         private static Transform FindDeep(
             Transform root,
@@ -381,7 +381,7 @@ namespace Voron24.Robot
         }
 
         /// <summary>
-        /// ROS2 /joint_states 메시지를 수신한다.
+        /// ROS2 /joint_states 메시지 수신.
         /// </summary>
         private void OnJointState(RosJointState message)
         {
@@ -408,8 +408,7 @@ namespace Voron24.Robot
                         message.name, jointName) < 0)
                     {
                         Debug.LogWarning(
-                            $"[JointState] '{jointName}'이 " +
-                            "/joint_states 메시지에 없습니다.");
+                            $"[JointState] '{jointName}' /joint_states 메시지에 없음");
                     }
                 }
             }
@@ -481,7 +480,7 @@ namespace Voron24.Robot
         }
 
         /// <summary>
-        /// Transform을 직접 변경하여 조인트를 이동시킨다.
+        /// Transform 직접 변경으로 조인트 이동.
         /// </summary>
         private static void ApplyKinematic(Joint joint)
         {
@@ -502,7 +501,7 @@ namespace Voron24.Robot
         }
 
         /// <summary>
-        /// ArticulationBody의 Drive Target을 변경한다.
+        /// ArticulationBody Drive Target 변경.
         /// </summary>
         private static void ApplyArticulationDrive(
             Joint joint)
@@ -517,7 +516,7 @@ namespace Voron24.Robot
 
         /// <summary>
         /// LocalMockDriver 등 외부 스크립트에서
-        /// 목표 위치를 전달할 때 사용한다.
+        /// 목표 위치 전달용.
         /// </summary>
         public void SetTargetExternal(
             string jointName,
@@ -529,8 +528,8 @@ namespace Voron24.Robot
                 if (verbose)
                 {
                     Debug.LogWarning(
-                        $"[JointState] 외부 목표를 적용할 " +
-                        $"조인트 '{jointName}'을 찾지 못했습니다.");
+                        $"[JointState] 외부 목표 적용 대상 " +
+                        $"'{jointName}' 없음");
                 }
 
                 return;

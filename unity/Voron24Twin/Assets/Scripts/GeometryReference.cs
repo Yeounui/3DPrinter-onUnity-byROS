@@ -3,7 +3,7 @@ using UnityEngine;
 public class GeometryReference : MonoBehaviour
 {
     [Header("Reference Frame")]
-    [Tooltip("이 GeometryReference가 생성/관리할 ReferenceFrame 자식 오브젝트 이름")]
+    [Tooltip("GeometryReference가 생성/관리하는 ReferenceFrame 자식 오브젝트 이름")]
     public string referenceFrameName = "ReferenceFrame";
 
     [Header("Surface A")]

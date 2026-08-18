@@ -75,12 +75,12 @@ public class GeometrySliderTravelLimitReport : MonoBehaviour
         {
             File.AppendAllText(reportPath, section);
             registeredParts.Add(partName);
-            Debug.Log($"[GeometrySliderTravelLimitReport] {partName}: 범위를 1회 기록했습니다. 파일: {reportPath}", this);
+            Debug.Log($"[GeometrySliderTravelLimitReport] {partName}: 범위 1회 기록 완료 {reportPath}", this);
             return true;
         }
         catch (Exception exception)
         {
-            Debug.LogWarning($"[GeometrySliderTravelLimitReport] 기록 실패: {exception.Message}", this);
+            Debug.LogWarning($"[GeometrySliderTravelLimitReport] 기록 실패 {exception.Message}", this);
             return false;
         }
     }
@@ -103,7 +103,7 @@ public class GeometrySliderTravelLimitReport : MonoBehaviour
         }
         catch (Exception exception)
         {
-            Debug.LogWarning($"[GeometrySliderTravelLimitReport] 초기화 실패: {exception.Message}", this);
+            Debug.LogWarning($"[GeometrySliderTravelLimitReport] 초기화 실패 {exception.Message}", this);
             return false;
         }
     }

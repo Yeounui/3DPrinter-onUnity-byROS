@@ -2,8 +2,8 @@ using System.Collections;
 using UnityEngine;
 
 /// <summary>
-/// 공통 로봇 좌표계 기준으로 X/Y 양방향 탐색을 순서대로 실행한다.
-/// 각 방향의 실제 충돌 예측과 이동은 InitializationManager가 담당한다.
+/// 공통 로봇 좌표계 기준 X/Y 양방향 순차 탐색.
+/// 각 방향 충돌 예측/이동은 InitializationManager 담당.
 /// </summary>
 public class InitializationAxisSequence : MonoBehaviour
 {
@@ -15,7 +15,7 @@ public class InitializationAxisSequence : MonoBehaviour
     [Header("Sequence")]
     public bool runOnStart;
     public bool includePositiveZ = true;
-    [Tooltip("기존 양방향 Z 탐색 호환 옵션입니다. 일반 초기화에서는 사용하지 않습니다.")]
+    [Tooltip("기존 양방향 Z 탐색 호환 옵션. 일반 초기화에서 미사용")]
     public bool includeZ;
     public bool includeNegativeZ = true;
     public int maxSteps = 1000;
@@ -49,13 +49,13 @@ public class InitializationAxisSequence : MonoBehaviour
     {
         if (sequenceRoutine != null)
         {
-            Debug.LogWarning("[InitializationAxisSequence] 순서 실행이 이미 진행 중입니다.", this);
+            Debug.LogWarning("[InitializationAxisSequence] 순서 실행 이미 진행 중", this);
             return;
         }
 
         if (manager == null || obstacleCollisionRoot == null)
         {
-            Debug.LogError("[InitializationAxisSequence] manager 또는 장애물 Collision Root가 없습니다.", this);
+            Debug.LogError("[InitializationAxisSequence] manager 또는 장애물 Collision Root 없음", this);
             return;
         }
 
@@ -70,7 +70,7 @@ public class InitializationAxisSequence : MonoBehaviour
         manager.StopInitialization();
         StopCoroutine(sequenceRoutine);
         sequenceRoutine = null;
-        Debug.Log("[InitializationAxisSequence] 순서 실행을 중지했습니다.", this);
+        Debug.Log("[InitializationAxisSequence] 순서 실행 중지", this);
     }
 
     private IEnumerator RunSequence()
@@ -79,8 +79,8 @@ public class InitializationAxisSequence : MonoBehaviour
 
         if (includePositiveZ)
         {
-            // 상한까지 탐색한 뒤, -Z 베드 탐색이 초기 Z 위치에서 시작하도록
-            // 원래 위치까지 한 스텝씩 복귀한다.
+            // 상한까지 탐색 후, -Z 베드 탐색이 초기 Z 위치에서 시작하도록
+            // 원래 위치까지 한 스텝씩 복귀
             yield return RunAxis(
                 InitializationManager.RobotAxis.Z,
                 InitializationManager.SearchDirection.Positive,
@@ -107,7 +107,7 @@ public class InitializationAxisSequence : MonoBehaviour
         yield return ReturnToAxisMidpoint(
             InitializationManager.RobotAxis.X,
             xMidpoint,
-            "Robot X 범위 중앙");
+            "Robot X 중앙");
 
         yield return RunAxis(InitializationManager.RobotAxis.Y, InitializationManager.SearchDirection.Positive, false);
         Vector3 yPositiveBoundary = manager.lastSafeRobotPosition;
@@ -120,12 +120,12 @@ public class InitializationAxisSequence : MonoBehaviour
         yield return ReturnToAxisMidpoint(
             InitializationManager.RobotAxis.Y,
             yMidpoint,
-            "Robot Y 범위 중앙");
+            "Robot Y 중앙");
 
         if (includeNegativeZ)
             yield return RunNegativeZCalibration();
 
-        Debug.Log("[InitializationAxisSequence] X/Y 양방향 및 -Z 베드 탐색 순서를 완료했습니다.", this);
+        Debug.Log("[InitializationAxisSequence] X/Y 양방향 + -Z 베드 탐색 순서 완료", this);
         sequenceRoutine = null;
     }
 
@@ -133,7 +133,7 @@ public class InitializationAxisSequence : MonoBehaviour
     {
         if (negativeZCalibration == null)
         {
-            Debug.LogError("[InitializationAxisSequence] NegativeZBedCalibration을 찾지 못했습니다.", this);
+            Debug.LogError("[InitializationAxisSequence] NegativeZBedCalibration 없음", this);
             yield break;
         }
 
@@ -164,7 +164,7 @@ public class InitializationAxisSequence : MonoBehaviour
         Transform movingBody = FindMovingBody(axis);
         if (movingBody == null)
         {
-            Debug.LogError($"[InitializationAxisSequence] Robot {axis} 이동 부품을 찾지 못했습니다.", this);
+            Debug.LogError($"[InitializationAxisSequence] Robot {axis} 이동 부품 없음", this);
             yield break;
         }
 
@@ -188,8 +188,8 @@ public class InitializationAxisSequence : MonoBehaviour
         manager.searchDirection = direction;
         manager.maxSteps = maxSteps;
         manager.holdDuration = holdDuration;
-        // +방향 끝에서 -방향 끝까지 실제로 한 스텝씩 이동하기 위해
-        // 각 방향 탐색 후 시작점으로 순간 복귀하지 않는다.
+        // +방향 끝에서 -방향 끝까지 한 스텝씩 실제 이동하기 위해
+        // 각 방향 탐색 후 시작점 순간 복귀 안 함
         manager.returnToStart = returnToStart;
 
         Debug.Log(
@@ -210,7 +210,7 @@ public class InitializationAxisSequence : MonoBehaviour
             $"State={manager.state}, SafeSteps={manager.completedSafeSteps}",
             this);
 
-        // 같은 manager를 재사용하므로 다음 코루틴이 시작될 프레임을 분리한다.
+        // 같은 manager 재사용이므로 다음 코루틴 시작 프레임 분리
         yield return null;
     }
 

@@ -12,6 +12,7 @@
 | `source` | `manual` | `manual` \\| `gcode` \\| `stl` |
 | `file` | `''` | source 가 gcode/stl 일 때 절대경로 |
 | `speed` | `10.0` | 재생 배속 초기값. 실행 중에는 `set_speed` 로 |
+| `max_step` | `10.0` | 틱당 헤드 이동 상한 [mm]. 배속을 올려도 이 이상은 안 건너뜀. `0` = 무제한 |
 | `pattern` | `none` | source 가 manual 일 때만 의미 있음 |
 | `unity` | `build` | `build`(리눅스 플레이어 기동) \\| `editor`(엔드포인트만) \\| `none` |
 | `rviz` | (자동) | 기본은 꺼짐. `unity:=none` 이면 자동으로 켜짐 |
@@ -121,6 +122,9 @@ def launch_setup(context, *args, **kwargs):
     # 문자열을 여기서 float 로 못 박음. 노드에 문자열로 넘기면 period:=30 이 INTEGER 로
     # 파싱돼 InvalidParameterTypeException 이 나고, 그건 사용자가 외울 일이 아님.
     speed = float(arg('speed'))
+    # 배속 올리면 틱당 이동량이 그만큼 커짐. 이 상한 없으면 speed:=100 에서
+    # 50Hz 좌표가 40mm 씩 건너뛰어 Unity 헤드가 경로를 따라가지 못함 (04b §배속).
+    max_step = float(arg('max_step'))
     rate = float(arg('rate'))
     period = float(arg('period'))
     # 엔드포인트 파라미터와 플레이어 인자 양쪽에 같은 값이 들어가므로 여기서 한 번만
@@ -128,8 +132,8 @@ def launch_setup(context, *args, **kwargs):
     ros_port = int(arg('ros_port'))
 
     # bind 주소와 connect 주소는 다름. `ros_ip` 는 엔드포인트가 서버로서 bind 하는
-    # 주소라 기본값이 0.0.0.0(모든 인터페이스)이고, 이 값은 접속 대상이 될 수 없다.
-    # 그래서 플레이어에게 넘길 주소를 인자로 따로 뺐다. 암묵적으로 0.0.0.0 -> 127.0.0.1
+    # 주소라 기본값이 0.0.0.0(모든 인터페이스)이고, 이 값은 접속 대상이 될 수 없음.
+    # 그래서 플레이어에게 넘길 주소를 인자로 따로 뺌. 암묵적으로 0.0.0.0 -> 127.0.0.1
     # 치환을 하지 않는 이유는 이 파일이 인자 검증을 launch 단계에서 끝내는 방침이라
     # 숨은 규칙을 두지 않기 위함.
     unity_connect_ip = arg('unity_connect_ip')
@@ -201,7 +205,8 @@ def launch_setup(context, *args, **kwargs):
         actions.append(Node(
             package='voron24_gcode', executable='gcode_player',
             name='gcode_player', output='screen',
-            parameters=[{'speed_default': speed, 'playback_topic': playback_topic}],
+            parameters=[{'speed_default': speed, 'max_step_mm': max_step,
+                         'playback_topic': playback_topic}],
             remappings=[('/printer/target', target_topic)]))
         if pattern != 'none':
             notes.append(LogInfo(msg=f'[sim] source:=gcode 라 pattern:={pattern} 은 무시함'))
@@ -212,7 +217,8 @@ def launch_setup(context, *args, **kwargs):
         actions.append(Node(
             package='voron24_gcode', executable='gcode_player',
             name='gcode_player', output='screen',
-            parameters=[{'speed_default': speed, 'playback_topic': playback_topic}],
+            parameters=[{'speed_default': speed, 'max_step_mm': max_step,
+                         'playback_topic': playback_topic}],
             remappings=[('/printer/target', target_topic)]))
         # 슬라이서는 액션 서버라 그래프 안에 노드로 들어옴. launch 가 ExecuteProcess 로
         # prusa-slicer 를 직접 돌리지 않는 이유 (04b §257).
@@ -288,7 +294,7 @@ def launch_setup(context, *args, **kwargs):
                      '-logFile', '-',             # ROS 로그와 같은 터미널로
                      # RosBootstrap.cs 가 읽어 씬의 ROSConnection 을 덮어씀. 안 넘기면
                      # 씬에 박힌 값으로 조용히 폴백해서 ros_port:= 오버라이드가 먹지
-                     # 않는다. 인자 이름·형식은 RosBootstrap.ValueOf 와 맞춰야 함
+                     # 않음. 인자 이름·형식은 RosBootstrap.ValueOf 와 맞춰야 함
                      # (`--이름 값` / `--이름=값` 둘 다 받지만 앞의 형식을 씀).
                      '--ros-ip', unity_connect_ip,
                      '--ros-port', str(ros_port)],
@@ -318,7 +324,7 @@ def launch_setup(context, *args, **kwargs):
             arguments=['-d', PathJoinSubstitution([desc_pkg, 'rviz', 'voron24.rviz'])]))
 
     notes.append(LogInfo(msg=f'[sim] source={source} unity={unity} rviz={rviz} '
-                             f'speed={speed} target={target_topic}'))
+                             f'speed={speed} max_step={max_step}mm target={target_topic}'))
     return notes + actions
 
 
@@ -330,6 +336,8 @@ def generate_launch_description():
                               description='source 가 gcode/stl 일 때 절대경로'),
         DeclareLaunchArgument('speed', default_value='10.0',
                               description='재생 배속 초기값'),
+        DeclareLaunchArgument('max_step', default_value='10.0',
+                              description='틱당 헤드 이동 상한 [mm]. 0 이면 무제한'),
         DeclareLaunchArgument('pattern', default_value='none',
                               description='none | home | sweep | square | lissajous'),
         DeclareLaunchArgument('unity', default_value='build',
@@ -347,7 +355,7 @@ def generate_launch_description():
                                           'ros_ip 와 같은 값이 아님 — 0.0.0.0 은 '
                                           '접속 대상이 될 수 없음'),
 
-        # 인자 값에 따라 노드 구성 자체가 갈리므로 조건부 substitution 대신 OpaqueFunction
-        # 으로 파이썬에서 분기. IfCondition 을 3 지선다에 쓰면 조건식이 노드마다 붙음.
+        # 인자 값에 따라 노드 구성이 갈리므로 조건부 substitution 대신 OpaqueFunction
+        # 으로 파이썬에서 분기. IfCondition 을 3지선다에 쓰면 조건식이 노드마다 붙음.
         OpaqueFunction(function=launch_setup),
     ])

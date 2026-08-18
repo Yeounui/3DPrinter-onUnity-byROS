@@ -40,11 +40,9 @@ def generate_launch_description():
     ros_port = LaunchConfiguration('ros_port')
 
     urdf = PathJoinSubstitution([desc_pkg, 'urdf', 'voron24.urdf.xacro'])
-    # voron24_description 패키지의 share 경로 아래 urdf 내 voron24.urdf.xacro을 변수와 연결.
-    # /install/voron24_description/share/voron24_description/urdf/voron24.urdf.xacro 
+    # voron24_description share 경로 아래 urdf/voron24.urdf.xacro 변수 연결.
     robot_description = Command(['xacro ', urdf, ' use_meshes:=', use_meshes])
-    # xacro <desc_pkg>/urdf/voron24.urdf.xacro use_meshes:=false 실행.
-    # :=는 ROS2 launch/xacro에서 쓰는 **인자에 값 지정** 표기
+    # xacro ... use_meshes:=false 실행. :=는 ROS2 launch/xacro 인자 값 지정 표기
 
     return LaunchDescription([
         DeclareLaunchArgument('use_meshes', default_value='false'),
@@ -57,8 +55,8 @@ def generate_launch_description():
         DeclareLaunchArgument('ros_ip', default_value='0.0.0.0'),
         DeclareLaunchArgument('ros_port', default_value='10000'),
 
-        # mock.launch.py가 실행될때 각 노드들을 생성.
-        # IfCondition 내 인자가 참일 때만 해당 노드 생성.
+        # mock.launch.py 실행 시 각 노드 생성.
+        # IfCondition 인자 참일 때만 해당 노드 생성.
 
         Node(package='robot_state_publisher', executable='robot_state_publisher',
              name='robot_state_publisher', output='screen',
@@ -66,23 +64,22 @@ def generate_launch_description():
                  'robot_description': ParameterValue(robot_description, value_type=str),
                  'publish_frequency': 50.0,
              }]),
-        # package='robot_state_publisher': 실행 파일이 들어 있는 ROS2 패키지 이름
-        # executable='robot_state_publisher': 패키지에서 실제 실행할 프로그램 이름 (ros2 run robot_state_publisher robot_state_publisher)
-        # name='robot_state_publisher': ROS 그래프에서 보일 노드 이름, ros2 node list에 /robot_state_publisher로 보임.
-        # output='screen': Node의 log를 launch를 실행한 터미널에 출력
-        # parameters=[{ ... }]: 노드 시작 시 전달되는 파라미터
-        # 'robot_description': ParameterValue(robot_description, value_type=str): robot_description으로부터의 output을 str로 출력.
-        # 'publish_frequency': 50.0  50Hz로 output 노드 간 통신 발행
+        # package: 실행 파일이 든 ROS2 패키지명
+        # executable: 패키지 내 실행 프로그램명 (ros2 run 대상)
+        # name: ROS 그래프 노드 이름. ros2 node list 에 /robot_state_publisher 로 표시
+        # output='screen': 로그를 launch 터미널에 출력
+        # parameters: 노드 기동 시 전달 파라미터
+        # robot_description: xacro 결과를 str 로 전달
+        # publish_frequency: 50Hz 발행
 
         Node(package='voron24_gcode', executable='mock_publisher',
              name='mock_publisher', output='screen',
              parameters=[{
                  'pattern': pattern,
-                 # value_type=float 을 반드시 붙일 것. 안 붙이면 launch 인자 문자열이
-                 # 리터럴로 파싱돼 period:=30 은 INTEGER 가 되고, 노드가
-                 # declare_parameter('period', 12.0) 로 DOUBLE 을 기대하므로
-                 # InvalidParameterTypeException 으로 죽는다. period:=30.0 처럼
-                 # 소수점을 찍어야만 뜨는 건 사용자가 외울 일이 아니다.
+                 # value_type=float 필수. 안 붙이면 launch 인자 문자열이 리터럴로
+                 # 파싱돼 period:=30 은 INTEGER, 노드는 DOUBLE 기대하므로
+                 # InvalidParameterTypeException 발생. period:=30.0 처럼 소수점
+                 # 찍어야만 뜨는 건 사용자가 외울 일 아님.
                  'rate': ParameterValue(rate, value_type=float),
                  'period': ParameterValue(period, value_type=float),
              }]),

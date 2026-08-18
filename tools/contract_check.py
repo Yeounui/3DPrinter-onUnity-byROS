@@ -2,20 +2,20 @@
 """
 contract_check.py
 =================
-URDF 가 계약(docs/00_interface_contract.md section 3) 을 지키는지 자동 검증한다.
+URDF 계약(docs/00_interface_contract.md §3) 준수 자동 검증.
 
-세 사람이 병렬로 작업하면 링크 이름이나 축이 조용히 어긋난다.
-이 스크립트를 CI 와 커밋 훅에 걸어두면 그 순간 잡힌다.
+3인 병렬 작업 시 링크 이름·축이 조용히 어긋남.
+CI/커밋 훅 게이트로 즉시 검출.
 
 사용:
     # xacro 확장 후 검사
     python3 tools/contract_check.py --xacro ros2_ws/src/voron24_description/urdf/voron24.urdf.xacro
     python3 tools/contract_check.py --xacro .../voron24.urdf.xacro --use-meshes
 
-    # 이미 확장된 urdf 검사
+    # 확장 완료 urdf 검사
     python3 tools/contract_check.py --urdf /tmp/voron24.urdf
 
-    # 메시 파일 존재/예산까지 검사
+    # 메시 파일 존재/예산 검사
     python3 tools/contract_check.py --xacro ... --use-meshes --check-meshes
 
 종료 코드 0 = 통과, 1 = 위반.
@@ -29,7 +29,7 @@ import tempfile
 import xml.etree.ElementTree as ET
 
 # ======================================================================
-# 계약 정의 — docs/00_interface_contract.md section 3 과 반드시 일치해야 한다
+# 계약 정의 — docs/00_interface_contract.md §3 동기화 필수
 # ======================================================================
 REQUIRED_LINKS = ['base_link', 'z_gantry', 'x_beam', 'toolhead', 'nozzle', 'bed_origin']
 
@@ -55,7 +55,7 @@ TRIANGLE_BUDGET = {
 }
 TOTAL_BUDGET = 250_000
 
-# 형상이 없어도 되는 링크 (프레임 전용)
+# 형상 불필요 링크 (프레임 전용)
 FRAME_ONLY_LINKS = {'nozzle', 'bed_origin'}
 
 
@@ -90,7 +90,7 @@ class Report:
 
 
 def expand_xacro(path, use_meshes):
-    """xacro 를 확장한다. ros2 환경이 있으면 xacro 명령, 없으면 python 모듈."""
+    """xacro 확장. ros2 환경 시 xacro CLI, 미설치 시 python 모듈."""
     args = [path, f'use_meshes:={"true" if use_meshes else "false"}']
     try:
         out = subprocess.run(['xacro'] + args, capture_output=True, text=True, check=True)
@@ -102,7 +102,7 @@ def expand_xacro(path, use_meshes):
     try:
         import xacro  # noqa
     except ImportError:
-        print('xacro 를 찾을 수 없습니다. ROS2 환경을 source 하거나 pip install xacro',
+        print('xacro 미발견. ROS2 환경 source 또는 pip install xacro 필요',
               file=sys.stderr)
         sys.exit(2)
     with tempfile.NamedTemporaryFile('w+', suffix='.urdf', delete=False) as f:
@@ -123,7 +123,7 @@ def parse_xyz(node, attr='xyz', default=(0.0, 0.0, 0.0)):
 
 
 def stl_triangle_count(path):
-    """바이너리/ASCII STL 의 삼각형 수."""
+    """바이너리/ASCII STL 삼각형 수."""
     size = os.path.getsize(path)
     with open(path, 'rb') as f:
         head = f.read(84)
@@ -141,7 +141,7 @@ def check(urdf_text, rep, check_meshes=False, mesh_root=None):
 
     name = root.get('name')
     if name != 'voron24':
-        rep.warn(f'robot name 이 "voron24" 가 아닙니다: {name!r}')
+        rep.warn(f'robot name "voron24" 아님: {name!r}')
 
     links = {l.get('name'): l for l in root.findall('link')}
     joints = {j.get('name'): j for j in root.findall('joint')}
@@ -162,32 +162,32 @@ def check(urdf_text, rep, check_meshes=False, mesh_root=None):
             rep.err(f'필수 조인트 누락: {jn}')
             continue
         if j.get('type') != jtype:
-            rep.err(f'{jn}: type 이 {jtype} 여야 하는데 {j.get("type")}')
+            rep.err(f'{jn}: type {jtype} 필요, 현재 {j.get("type")}')
         p = j.find('parent')
         c = j.find('child')
         if p is None or p.get('link') != parent:
-            rep.err(f'{jn}: parent 가 {parent} 여야 하는데 '
+            rep.err(f'{jn}: parent {parent} 필요, 현재 '
                     f'{p.get("link") if p is not None else None}')
         if c is None or c.get('link') != child:
-            rep.err(f'{jn}: child 가 {child} 여야 하는데 '
+            rep.err(f'{jn}: child {child} 필요, 현재 '
                     f'{c.get("link") if c is not None else None}')
         if axis is not None:
             a = parse_xyz(j.find('axis'), default=(1.0, 0.0, 0.0))
             if tuple(round(v) for v in a) != axis:
-                rep.err(f'{jn}: axis 가 {axis} 여야 하는데 {a}')
+                rep.err(f'{jn}: axis {axis} 필요, 현재 {a}')
 
     unknown = set(joints) - set(REQUIRED_JOINTS) - OPTIONAL_JOINTS
     unknown = {u for u in unknown if not u.startswith('joint_door_')}
     if unknown:
-        rep.warn(f'계약에 없는 조인트: {sorted(unknown)} — 계약 문서를 갱신했나요?')
+        rep.warn(f'계약 미정의 조인트: {sorted(unknown)} — 계약 문서 갱신 필요?')
 
-    # ---- 베드는 base_link 에 고정이어야 한다 (Voron 2.4 플라잉 갠트리) ----
+    # ---- 베드는 base_link 에 고정이어야 함 (Voron 2.4 플라잉 갠트리) ----
     jbo = joints.get('joint_bed_origin')
     if jbo is not None:
         p = jbo.find('parent')
         if p is not None and p.get('link') != 'base_link':
-            rep.err('bed_origin 의 parent 가 base_link 가 아닙니다. '
-                    'Voron 2.4 는 베드가 고정입니다 (베드슬링어와 혼동)')
+            rep.err('bed_origin parent 가 base_link 아님. '
+                    'Voron 2.4 베드 고정 (베드슬링어 혼동 주의)')
 
     # ---- 스트로크 리밋 ----
     for jn in ('joint_x', 'joint_y', 'joint_z'):
@@ -196,14 +196,14 @@ def check(urdf_text, rep, check_meshes=False, mesh_root=None):
             continue
         lim = j.find('limit')
         if lim is None:
-            rep.err(f'{jn}: <limit> 누락 (prismatic 은 필수)')
+            rep.err(f'{jn}: <limit> 누락 (prismatic 필수)')
             continue
         lo, hi = float(lim.get('lower', 0)), float(lim.get('upper', 0))
         if abs(lo) > 1e-9:
-            rep.warn(f'{jn}: lower 가 0 이 아닙니다 ({lo}). '
-                     'G-code 좌표를 그대로 쓰려면 0 이어야 합니다')
+            rep.warn(f'{jn}: lower 0 아님 ({lo}). '
+                     'G-code 좌표 직접 사용 시 0 필수')
         if not (STROKE_MIN <= hi <= STROKE_MAX):
-            rep.warn(f'{jn}: upper={hi} 가 예상 범위 [{STROKE_MIN}, {STROKE_MAX}] 밖')
+            rep.warn(f'{jn}: upper={hi} 예상 범위 [{STROKE_MIN}, {STROKE_MAX}] 외')
         for req in ('effort', 'velocity'):
             if lim.get(req) is None:
                 rep.err(f'{jn}: <limit> 에 {req} 누락')
@@ -214,29 +214,29 @@ def check(urdf_text, rep, check_meshes=False, mesh_root=None):
             continue
         inert = l.find('inertial')
         if inert is None:
-            rep.err(f'{ln}: <inertial> 누락 → Unity 에서 mass=0 이 되어 시뮬이 폭발합니다')
+            rep.err(f'{ln}: <inertial> 누락 → Unity mass=0 으로 시뮬 폭발')
             continue
         m = inert.find('mass')
         if m is None or float(m.get('value', 0)) <= 0:
-            rep.err(f'{ln}: mass 가 0 이하')
+            rep.err(f'{ln}: mass 0 이하')
         i = inert.find('inertia')
         if i is None:
             rep.err(f'{ln}: <inertia> 누락')
         else:
             for k in ('ixx', 'iyy', 'izz'):
                 if float(i.get(k, 0)) <= 0:
-                    rep.err(f'{ln}: inertia {k} 가 0 이하')
+                    rep.err(f'{ln}: inertia {k} 0 이하')
 
     # ---- 형상 ----
     for ln, l in links.items():
         if ln in FRAME_ONLY_LINKS:
             if l.find('visual') is not None:
-                rep.warn(f'{ln}: 프레임 전용 링크인데 <visual> 이 있습니다')
+                rep.warn(f'{ln}: 프레임 전용 링크에 <visual> 존재')
             continue
         if l.find('visual') is None:
             rep.err(f'{ln}: <visual> 누락')
         if l.find('collision') is None:
-            rep.warn(f'{ln}: <collision> 누락 (물리 시뮬 시 필요)')
+            rep.warn(f'{ln}: <collision> 누락 (물리 시뮬 필요)')
 
     # ---- 메시 ----
     meshes = root.findall('.//mesh')
@@ -246,9 +246,9 @@ def check(urdf_text, rep, check_meshes=False, mesh_root=None):
             sc = m.get('scale')
             if sc is None:
                 rep.warn(f'{m.get("filename")}: scale 없음. '
-                         'STL 이 mm 라면 0.001 필요 (계약 section 2)')
+                         'mm STL 이면 0.001 필요 (계약 §2)')
             elif tuple(float(v) for v in sc.split()) != (0.001, 0.001, 0.001):
-                rep.warn(f'{m.get("filename")}: scale={sc} — mm 메시면 0.001 이어야 합니다')
+                rep.warn(f'{m.get("filename")}: scale={sc} — mm 메시 시 0.001 필요')
 
         if check_meshes:
             total = 0
@@ -280,7 +280,7 @@ def check(urdf_text, rep, check_meshes=False, mesh_root=None):
                 if j.find('child') is not None}
     roots = set(links) - children
     if roots != {'base_link'}:
-        rep.err(f'루트 링크가 base_link 하나여야 하는데: {sorted(roots)}')
+        rep.err(f'루트 링크 base_link 단일이어야 함, 현재: {sorted(roots)}')
 
 
 def main():
@@ -290,7 +290,7 @@ def main():
     g.add_argument('--urdf')
     ap.add_argument('--use-meshes', action='store_true')
     ap.add_argument('--check-meshes', action='store_true',
-                    help='메시 파일 존재와 삼각형 예산까지 검사')
+                    help='메시 파일 존재·삼각형 예산 검사')
     ap.add_argument('--mesh-root', default=None,
                     help='voron24_description 패키지 경로 (기본: xacro 파일 기준 추정)')
     a = ap.parse_args()

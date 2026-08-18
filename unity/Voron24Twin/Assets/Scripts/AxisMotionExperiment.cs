@@ -2,16 +2,16 @@ using System.Collections;
 using UnityEngine;
 
 /// <summary>
-/// GeometrySliderConstraint가 붙은 한 이동 부품을 자유축 방향으로
-/// 이동시켰다가 원래 위치로 복귀시키는 1차 검증용 실험 스크립트.
+/// GeometrySliderConstraint 부착 이동 부품을 자유축 방향으로
+/// 이동 후 원위치 복귀하는 1차 검증용 실험 스크립트.
 /// </summary>
 public class AxisMotionExperiment : MonoBehaviour
 {
     [Header("Target")]
-    [Tooltip("GeometrySliderConstraint가 붙은 이동 부품")]
+    [Tooltip("GeometrySliderConstraint 부착 이동 부품")]
     public GeometrySliderConstraint sliderConstraint;
 
-    [Tooltip("비워 두면 Slider Constraint가 붙은 오브젝트를 이동시킵니다.")]
+    [Tooltip("비워 두면 Slider Constraint 부착 오브젝트 이동")]
     public Transform movingBody;
 
     [Header("Experiment")]
@@ -27,7 +27,7 @@ public class AxisMotionExperiment : MonoBehaviour
     public bool runOnStart = true;
 
     [Header("Travel Clamp")]
-    [Tooltip("실험 중 Travel Clamp를 끄고 실험 종료 후 원래 상태로 복구합니다.")]
+    [Tooltip("실험 중 Travel Clamp off, 실험 종료 후 원래 상태 복구")]
     public bool disableTravelClampDuringExperiment = true;
 
     public GeometrySliderTravelClamp travelClamp;
@@ -65,7 +65,7 @@ public class AxisMotionExperiment : MonoBehaviour
     {
         if (experimentRoutine != null)
         {
-            Debug.LogWarning("[AxisMotionExperiment] 이미 실험이 진행 중입니다.", this);
+            Debug.LogWarning("[AxisMotionExperiment] 실험 이미 진행 중", this);
             return;
         }
 
@@ -144,25 +144,25 @@ public class AxisMotionExperiment : MonoBehaviour
     {
         if (sliderConstraint == null)
         {
-            Debug.LogError("[AxisMotionExperiment] Slider Constraint 참조가 없습니다.", this);
+            Debug.LogError("[AxisMotionExperiment] Slider Constraint 참조 없음", this);
             return false;
         }
 
         if (sliderConstraint.fixedReferenceFrame == null)
         {
-            Debug.LogError("[AxisMotionExperiment] Fixed Reference Frame 참조가 없습니다.", this);
+            Debug.LogError("[AxisMotionExperiment] Fixed Reference Frame 참조 없음", this);
             return false;
         }
 
         if (movingBody == null)
         {
-            Debug.LogError("[AxisMotionExperiment] Moving Body 참조가 없습니다.", this);
+            Debug.LogError("[AxisMotionExperiment] Moving Body 참조 없음", this);
             return false;
         }
 
         if (!sliderConstraint.enabled)
         {
-            Debug.LogError("[AxisMotionExperiment] 실험 중에는 GeometrySliderConstraint가 켜져 있어야 합니다.", this);
+            Debug.LogError("[AxisMotionExperiment] 실험 중 GeometrySliderConstraint enabled 필수", this);
             return false;
         }
 

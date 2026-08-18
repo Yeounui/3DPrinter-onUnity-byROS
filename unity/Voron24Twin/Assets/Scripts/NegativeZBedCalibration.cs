@@ -3,8 +3,8 @@ using System.Collections.Generic;
 using UnityEngine;
 
 /// <summary>
-/// Z축 하강 시 노즐-베드 접촉을 찾고, 모델링 오류로 발생하는
-/// gantry-base 충돌의 예외 범위를 측정하는 전용 탐색기.
+/// Z축 하강 시 노즐-베드 접촉 탐색 + 모델링 오류로 인한
+/// gantry-base 충돌 예외 범위 측정 전용 탐색기.
 /// </summary>
 public class NegativeZBedCalibration : MonoBehaviour
 {
@@ -104,7 +104,7 @@ public class NegativeZBedCalibration : MonoBehaviour
 
     private IEnumerator RunCalibration()
     {
-        // z_gantry의 이동이 x_beam과 toolhead constraint chain에 반영되도록 한 프레임 대기한다.
+        // z_gantry 이동이 x_beam/toolhead constraint chain에 반영되도록 한 프레임 대기
         yield return null;
         Physics.SyncTransforms();
 
@@ -163,7 +163,7 @@ public class NegativeZBedCalibration : MonoBehaviour
 
         SetState(CalibrationState.Blocked);
         Debug.LogWarning(
-            $"[NegativeZBedCalibration] 최대 스텝 안에서 노즐-베드 접촉을 찾지 못했습니다. " +
+            $"[NegativeZBedCalibration] 최대 스텝 내 노즐-베드 접촉 미발견 " +
             $"SafeSteps={safeStepsBeforeContact}",
             this);
         zGantry.position = startPosition;

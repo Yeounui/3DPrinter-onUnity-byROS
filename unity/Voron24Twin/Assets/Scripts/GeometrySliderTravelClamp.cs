@@ -1,9 +1,9 @@
 using UnityEngine;
 
 /// <summary>
-/// GeometryTravelLimit에서 계산한 Rail/Block 투영 한계를 이용해
-/// 슬라이더의 이동체를 자유축 방향으로만 보정한다.
-/// GeometrySliderConstraint가 회전과 직교축 정렬을 담당한 뒤 LateUpdate에서 실행한다.
+/// GeometryTravelLimit의 Rail/Block 투영 한계로
+/// 슬라이더 이동체를 자유축 방향으로만 보정.
+/// GeometrySliderConstraint 회전/직교축 정렬 이후 LateUpdate에서 실행.
 /// </summary>
 public class GeometrySliderTravelClamp : MonoBehaviour
 {
@@ -11,15 +11,15 @@ public class GeometrySliderTravelClamp : MonoBehaviour
     public GeometrySliderConstraint sliderConstraint;
     public GeometryTravelLimit travelLimit;
 
-    [Tooltip("비워 두면 GeometrySliderConstraint가 붙은 GameObject를 이동시킨다.")]
+    [Tooltip("비워 두면 GeometrySliderConstraint 부착 GameObject 이동")]
     public Transform movingBody;
 
     [Header("Behavior")]
-    [Tooltip("Play 중 매 프레임 이동체를 Rail 범위 안으로 보정한다.")]
+    [Tooltip("Play 중 매 프레임 이동체를 Rail 범위 안으로 보정")]
     public bool clampInPlayMode = true;
 
     [Header("Diagnostics")]
-    [Tooltip("Console에 투영값과 보정 상태를 주기적으로 출력한다.")]
+    [Tooltip("Console에 투영값/보정 상태 주기 출력")]
     public bool debugLogging = true;
 
     [Min(0.1f)]
@@ -56,19 +56,19 @@ public class GeometrySliderTravelClamp : MonoBehaviour
     {
         if (sliderConstraint == null)
         {
-            LogStatus("실패: Slider Constraint 참조가 비어 있습니다.");
+            LogStatus("Slider Constraint 참조 없음");
             return false;
         }
 
         if (travelLimit == null)
         {
-            LogStatus("실패: Travel Limit 참조가 비어 있습니다.");
+            LogStatus("Travel Limit 참조 없음");
             return false;
         }
 
         if (movingBody == null)
         {
-            LogStatus("실패: Moving Body 참조가 비어 있습니다.");
+            LogStatus("Moving Body 참조 없음");
             return false;
         }
 
@@ -92,7 +92,7 @@ public class GeometrySliderTravelClamp : MonoBehaviour
 
         if (axisFrame == null)
         {
-            LogStatus("실패: 축으로 사용할 Fixed Reference Frame이 없습니다.");
+            LogStatus("Fixed Reference Frame 없음");
             return false;
         }
 
@@ -114,8 +114,8 @@ public class GeometrySliderTravelClamp : MonoBehaviour
             return true;
         }
 
-        // Rail/Block 기준점은 movingBody와 함께 이동한다고 가정한다.
-        // 자유축(axis) 성분만 보정하므로 슬라이더의 회전과 직교축 정렬은 유지된다.
+        // Rail/Block 기준점은 movingBody와 함께 이동 가정
+        // 자유축(axis) 성분만 보정하므로 회전/직교축 정렬 유지
         movingBody.position += axis * correction;
         LogValues(railMin, railMax, blockMin, blockMax, correction, "보정 적용");
         return true;

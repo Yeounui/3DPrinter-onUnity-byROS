@@ -4,8 +4,8 @@ mock_publisher_node.py
 ======================
 계약(00_interface_contract.md section 5) 검증용 더미 퍼블리셔.
 
-A 의 메시도, 실제 G-code 도 없이 B 가 Unity 작업을 시작할 수 있게 한다.
-W1 게이트: 이 노드를 띄웠을 때 RViz 와 Unity 에서 동시에 같은 움직임이 보여야 한다.
+A 메시도, 실제 G-code 도 없이 B 가 Unity 작업 시작 가능하게 함.
+W1 게이트: 이 노드 띄웠을 때 RViz 와 Unity 에서 동시에 같은 움직임 보여야 함.
 
 퍼블리시:
     /joint_states       sensor_msgs/JointState   50 Hz
@@ -31,7 +31,7 @@ import rclpy
 from rclpy.node import Node
 from sensor_msgs.msg import JointState
 
-# voron24_msgs 가 빌드에 포함되지 않아도 joint_states 만으로 동작 가능케 함.
+# voron24_msgs 빌드 미포함이어도 joint_states 만으로 동작 가능.
 from voron24_gcode.patterns import PatternGenerator, PATTERNS
 
 try:
@@ -47,15 +47,15 @@ JOINT_NAMES = ['joint_x', 'joint_y', 'joint_z']   # 계약 section 3. 변경 금
 class MockPublisher(Node):
 
     def __init__(self):
-        super().__init__('mock_publisher') # Node 이름을 mock_publisher로 정의.
+        super().__init__('mock_publisher') # Node 이름 mock_publisher 정의.
 
         self.declare_parameter('pattern', 'lissajous')
         self.declare_parameter('rate', 50.0)
-        self.declare_parameter('period', 12.0)      # 한 사이클 [s]
+        self.declare_parameter('period', 12.0)      # 사이클 주기 [s]
         self.declare_parameter('stroke_x', 0.250)
         self.declare_parameter('stroke_y', 0.250)
         self.declare_parameter('stroke_z', 0.250)
-        self.declare_parameter('margin', 0.010)     # 리밋에서 띄울 여유 [m]
+        self.declare_parameter('margin', 0.010)     # 리밋 여유 [m]
         self.declare_parameter('publish_status', True)
         self.declare_parameter('publish_extrusion', True)
 
@@ -78,9 +78,8 @@ class MockPublisher(Node):
         self._prev_xyz = (0.0, 0.0, 0.0)
 
         self.js_pub = self.create_publisher(JointState, '/joint_states', 10)
-        # JointState: 보내는 데이터의 형식
-        # /joint_states: 데이터를 보낼 토픽 이름. /는 ROS 전체에서 사용하는 절대 토픽 이름.
-        # 10: QoS의 queue depth. 수신자가 처리가 지연된 경우, 최근 메시지를 최대 10개까지 보관. 10개 넘으면 오래된 메시지가 버려짐.
+        # JointState: 데이터 형식. /joint_states: 절대 토픽명.
+        # 10: QoS queue depth. 수신 지연 시 최근 10개 보관, 초과분 폐기.
         self.create_timer(self.dt, self.tick)
 
         self.st_pub = None
@@ -89,7 +88,7 @@ class MockPublisher(Node):
             if self.get_parameter('publish_status').value:
                 self.st_pub = self.create_publisher(PrinterStatus, '/printer/status', 10)
                 self.create_timer(0.2, self.publish_status)
-                # 0.2초마다 self.publish_status()를 한 번 실행.
+                # 0.2초마다 publish_status() 실행.
             if self.get_parameter('publish_extrusion').value:
                 self.ex_pub = self.create_publisher(ExtrusionPoint, '/printer/extrusion', 200)
         else:
@@ -119,7 +118,7 @@ class MockPublisher(Node):
         msg.header.stamp = self.get_clock().now().to_msg()
         msg.name = list(JOINT_NAMES)
         msg.position = [x, y, z]
-        px, py, pz = self._prev_xyz # coords to be outdated.
+        px, py, pz = self._prev_xyz
         msg.velocity = [(x - px) / self.dt, (y - py) / self.dt, (z - pz) / self.dt] # delta value of x,y,z coord.
         self.js_pub.publish(msg)
 

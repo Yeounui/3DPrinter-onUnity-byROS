@@ -6,6 +6,7 @@ Move 스트림 -> 시간축 좌표 샘플.
     python3 -m voron24_gcode.motion                    # 자체 검증
     python3 -m voron24_gcode.motion sample.gcode       # 시간축 궤적 확인
     python3 -m voron24_gcode.motion sample.gcode 10    # 10 배속
+    python3 -m voron24_gcode.motion sample.gcode 100 10 # 100 배속 + 틱당 10mm 상한
 
 G-code 가 주는 것은 목표 좌표와 이송속도뿐. `/joint_states` 가 요구하는 50Hz
 좌표 열은 이 모듈이 만듦.
@@ -18,6 +19,12 @@ G-code 가 주는 것은 목표 좌표와 이송속도뿐. `/joint_states` 가 �
 
 가속(사다리꼴 프로파일)은 넣지 않음. 시각화에는 등속으로 충분, 추가 시 룩어헤드 큐 구현 필요.
 `F` 는 축별 최대속도로 클램프하며, 그 최대속도는 voron24_params.xacro 에서 읽음.
+
+배속(`speed_scale`)은 시간축만 늘이므로 올리다 보면 **한 틱의 이동량**이 커짐. 50Hz
+샘플이 40mm 씩 건너뛰면 그건 더 이상 궤적이 아니라 순간이동이고, 받는 쪽(Unity
+ArticulationBody)은 그 목표를 따라가지 못해 뒤에 처진 채 헤맴. `max_step_mm` 은 그
+상한 — 걸리면 남은 시간 예산을 버려 재생이 느려질 뿐 좌표는 경로 위에 남음.
+연속성과 압축은 맞바꾸는 관계이고, 이 값이 그 교환비.
 """
 import math
 import os
@@ -133,16 +140,23 @@ class MotionInterpolator:
     """
 
     def __init__(self, moves, speed_scale=1.0, max_speed_mm_s=MAX_SPEED_MM_S,
-                 start=(0.0, 0.0, 0.0)):
+                 start=(0.0, 0.0, 0.0), max_step_mm=None):
         self.moves = iter(moves)
         self.max_speed_mm_s = tuple(max_speed_mm_s)
         self.speed_scale = speed_scale          # 검증은 아래 setter 담당
+        # 틱당 경로 이동량 상한 [mm]. None/0/음수면 무제한 — 순수 모듈의 기본값은
+        # 문서에 적힌 "배속은 기계 한계에 걸리지 않음" 그대로 두고, 화면에 뿌리는
+        # 쪽(gcode_player_node)이 파라미터로 상한을 검.
+        self.max_step_mm = (float('inf') if not max_step_mm or max_step_mm <= 0.0
+                            else float(max_step_mm))
         self.position = tuple(start)
         self.s = 0.0                            # 현재 세그먼트 진행거리 [mm]
         self.time_s = 0.0                       # 소비한 G-code 시간 (배속 반영)
+        self.wall_s = 0.0                       # 흘려보낸 재생 시간 (dt 누적)
         self.tick_count = 0
         self.vertex_count = 0
         self.clamped_count = 0
+        self.throttled_ticks = 0                # 거리 상한에 걸려 시간을 버린 틱
         self.seg = None
         self._seg_speed = 0.0
         self._advance()
@@ -168,6 +182,17 @@ class MotionInterpolator:
     @property
     def done(self):
         return self.seg is None
+
+    @property
+    def effective_scale(self):
+        """실제로 나간 배속. 거리 상한에 걸리면 요청한 speed_scale 보다 작음.
+
+        요청값과 이 값이 벌어져 있는 것이 곧 "이 배속으로 연속 재생 불가능함"
+        이라는 뜻이므로 노드가 사용자에게 그대로 알림.
+        """
+        if self.wall_s <= 0.0:
+            return self._speed_scale
+        return self.time_s / self.wall_s
 
     # ------------------------------------------------------------------
     def axis_limit_mm_s(self, move):
@@ -206,13 +231,19 @@ class MotionInterpolator:
         """
         vertices = []
         time_left = dt * self._speed_scale
-        while time_left > 0.0 and self.seg is not None:
-            remain_s = (self.seg.length_mm - self.s) / self._seg_speed
-            if remain_s > time_left:
-                self.s += self._seg_speed * time_left
-                time_left = 0.0
+        dist_left = self.max_step_mm
+        while time_left > 0.0 and dist_left > 0.0 and self.seg is not None:
+            remain_mm = self.seg.length_mm - self.s
+            # 이번 틱에 이 세그먼트에서 쓸 수 있는 거리. 시간 예산과 거리 상한 중
+            # 먼저 바닥나는 쪽이 결정.
+            budget_mm = min(self._seg_speed * time_left, dist_left)
+            if budget_mm < remain_mm:
+                self.s += budget_mm
+                time_left -= budget_mm / self._seg_speed
+                dist_left -= budget_mm
                 break
-            time_left -= remain_s                # 세그먼트 소진 -> 다음 것으로
+            time_left -= remain_mm / self._seg_speed   # 세그먼트 소진 -> 다음 것으로
+            dist_left -= remain_mm
             self.position = self.seg.end
             vertices.append(self.seg)
             self._advance()
@@ -220,9 +251,13 @@ class MotionInterpolator:
         if self.seg is not None:
             self.position = self.seg.point_at(self.s)
         # 스트림이 틱 중간에 끝나면 남은 시간은 소비되지 않은 것. 재생 시간에서 뺌.
+        # 거리 상한에 걸려 남긴 시간도 같은 취급 — 그만큼 재생이 느려지는 것이 의도.
         self.time_s += dt * self._speed_scale - time_left
+        self.wall_s += dt
         self.tick_count += 1
         self.vertex_count += len(vertices)
+        if time_left > 1e-12 and self.seg is not None:
+            self.throttled_ticks += 1
         return Sample(self.position, self.seg, tuple(vertices), self.seg is None)
 
     def run(self, dt):
@@ -232,21 +267,21 @@ class MotionInterpolator:
 
 
 # ----------------------------------------------------------------------
-def trace(path, speed_scale=1.0, rate_hz=DEFAULT_RATE_HZ, show=10):
+def trace(path, speed_scale=1.0, max_step_mm=None, rate_hz=DEFAULT_RATE_HZ, show=10):
     """파일 -> 50Hz 궤적 + 합계. 합계는 make_test_gcode.py 로 생성된 좌표 값과 대조."""
     import sys
 
     dt = 1.0 / rate_hz
     parser, stream = parse_file(path, on_warning=lambda t: print(f'WARN {t}', file=sys.stderr))
-    interp = MotionInterpolator(stream, speed_scale=speed_scale)
+    interp = MotionInterpolator(stream, speed_scale=speed_scale, max_step_mm=max_step_mm)
 
     prev = interp.position
-    max_step_mm = 0.0
+    max_step_seen = 0.0
     extruding_ticks = 0
     try:
         for sample in interp.run(dt):
             step = math.dist(prev, sample.position)
-            max_step_mm = max(max_step_mm, step)
+            max_step_seen = max(max_step_seen, step)
             prev = sample.position
             if sample.move is not None and sample.move.extruding:
                 extruding_ticks += 1
@@ -259,13 +294,17 @@ def trace(path, speed_scale=1.0, rate_hz=DEFAULT_RATE_HZ, show=10):
         return 1
 
     vx, vy, vz = interp.max_speed_mm_s
-    print(f'\nspeed_scale={speed_scale:g} rate={rate_hz:g}Hz')
+    print(f'\nspeed_scale={speed_scale:g} rate={rate_hz:g}Hz '
+          f'max_step={interp.max_step_mm:g}mm/tick')
     print(f'  max_speed=({vx:g},{vy:g},{vz:g})mm/s '
           f'<- {MAX_SPEED_SOURCE or "fallback (xacro 를 못 찾음)"}')
     print(f'  ticks={interp.tick_count} (wall {interp.tick_count * dt:.2f}s)')
     print(f'  gcode_time={interp.time_s:.2f}s  extruding_ticks={extruding_ticks}')
     print(f'  vertices={interp.vertex_count} / moves={parser.move_count}')
-    print(f'  clamped_seg={interp.clamped_count}  max_step={max_step_mm:.3f}mm/tick')
+    print(f'  clamped_seg={interp.clamped_count}  실측 max_step={max_step_seen:.3f}mm/tick')
+    if interp.throttled_ticks:
+        print(f'  거리 상한에 걸린 틱={interp.throttled_ticks} '
+              f'-> 실제 배속 {interp.effective_scale:.2f}x (요청 {speed_scale:g}x)')
     x, y, z = interp.position
     print(f'  end=({x:.3f},{y:.3f},{z:.3f})')
     return 0
@@ -278,9 +317,10 @@ def _seg(start, end, feed_mm_s, extrude_mm=0.0):
                 width_mm=0.42, height_mm=0.2, layer=1, line_no=0)
 
 
-def _drain(moves, dt=1.0 / DEFAULT_RATE_HZ, speed_scale=1.0, limit=200000):
+def _drain(moves, dt=1.0 / DEFAULT_RATE_HZ, speed_scale=1.0, limit=200000,
+           max_step_mm=None):
     """끝까지 돌린 뒤 (틱 수, 꼭짓점 리스트, 틱당 최대 이동량, 보간기) 반환."""
-    interp = MotionInterpolator(moves, speed_scale=speed_scale)
+    interp = MotionInterpolator(moves, speed_scale=speed_scale, max_step_mm=max_step_mm)
     vertices = []
     prev = interp.position
     max_step = 0.0
@@ -363,6 +403,30 @@ def _self_test():
     check('  G-code 시간 동일', abs(interp_x2.time_s - interp_x1.time_s) < 1e-9,
           f'{interp_x2.time_s} vs {interp_x1.time_s}')
 
+    # 틱당 거리 상한. 배속만 올리면 50Hz 샘플이 수십 mm 씩 건너뛰어 궤적이 아니라
+    # 순간이동이 됨. 상한에 걸리면 시간 예산을 버리고 그만큼 느리게 재생.
+    # 100mm 직선 / 50mm/s 를 10 배속(틱당 10mm)으로 돌리되 상한 1mm -> 1 배속과 같은 100 틱.
+    ticks, vertices, max_step, interp = _drain(
+        [_seg((0, 0, 0), (100, 0, 0), 50.0)], speed_scale=10.0, max_step_mm=1.0)
+    check('거리 상한이 틱당 이동을 자름', max_step <= 1.0 + 1e-9, f'{max_step}')
+    check('  느려진 만큼 틱이 늘어남', near_ticks(ticks, 100), f'{ticks} != ~100')
+    check('  종점은 그대로', interp.position == (100, 0, 0), f'{interp.position}')
+    check('  꼭짓점도 그대로', len(vertices) == 1, f'{len(vertices)}')
+    check('  throttled 로 드러남', interp.throttled_ticks >= 99, f'{interp.throttled_ticks}')
+    check('  실제 배속 = 1x', abs(interp.effective_scale - 1.0) < 0.02,
+          f'{interp.effective_scale}')
+
+    # 상한보다 느린 재생은 아무 영향 없음 — 기본 동작이 바뀌면 안 됨.
+    ticks_free, _, _, interp_free = _drain([_seg((0, 0, 0), (100, 0, 0), 50.0)])
+    ticks_cap, _, _, interp_cap = _drain([_seg((0, 0, 0), (100, 0, 0), 50.0)],
+                                         max_step_mm=10.0)
+    check('상한 미만이면 무영향', ticks_cap == ticks_free and interp_cap.throttled_ticks == 0,
+          f'{ticks_cap} vs {ticks_free}, throttled={interp_cap.throttled_ticks}')
+    check('  상한 None 은 무제한',
+          MotionInterpolator([]).max_step_mm == float('inf'))
+    check('  상한 0 도 무제한',
+          MotionInterpolator([], max_step_mm=0.0).max_step_mm == float('inf'))
+
     # 0 이하 배속은 거부. pause 는 노드가 sample() 호출을 멈추는 것으로 처리.
     try:
         MotionInterpolator([], speed_scale=0.0)
@@ -389,5 +453,6 @@ if __name__ == '__main__':
 
     if len(sys.argv) > 1:
         scale = float(sys.argv[2]) if len(sys.argv) > 2 else 1.0
-        sys.exit(trace(sys.argv[1], scale))
+        cap = float(sys.argv[3]) if len(sys.argv) > 3 else None
+        sys.exit(trace(sys.argv[1], scale, cap))
     sys.exit(0 if _self_test() else 1)

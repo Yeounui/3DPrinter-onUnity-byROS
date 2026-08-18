@@ -158,9 +158,18 @@ class GcodePlayer(Node):
         self.declare_parameter('rate', 50.0)
         self.declare_parameter('status_rate', 5.0)      # 계약 §5
         self.declare_parameter('playback_topic', '/printer/playback')
+        # 틱당 경로 이동량 상한 [mm]. 0 이하면 무제한.
+        #
+        # 배속은 시간축만 늘이므로 올리는 만큼 한 틱의 이동량이 커짐. 50Hz 로 뽑는
+        # 좌표가 40mm 씩 뛰면 그건 궤적이 아니라 순간이동이고, 받는 쪽 ArticulationBody
+        # 는 그 목표를 못 따라가 뒤처진 채 헤맴("점 사이를 안 가고 튐"의 정체).
+        # 기본값 10mm 는 vel_xy(500mm/s) x dt(0.02s) — 즉 화면 위의 헤드가 기계 자신의
+        # 최대속도보다 빨리 움직이지 않게 하는 값.
+        self.declare_parameter('max_step_mm', 10.0)
 
         self.rate = float(self.get_parameter('rate').value)
         self.dt = 1.0 / self.rate
+        self.max_step_mm = float(self.get_parameter('max_step_mm').value)
         self.speed_scale = float(self.get_parameter('speed_default').value)
         if self.speed_scale <= 0.0:
             self.get_logger().warn(
@@ -174,6 +183,8 @@ class GcodePlayer(Node):
         self.progress = 0.0
         self.layer = 0
         self._prev_m = (0.0, 0.0, 0.0)
+        self._throttle_warned = False       # 거리 상한 경고는 재생당 한 번
+        self._dup_warned = False            # /printer/target 발행자 중복 경고
 
         # 파서 경고는 리더 스레드에서 나옴. 로거를 그 스레드에서 부르지 않으려고
         # 여기 쌓아 두고 상태 타이머(노드 스레드)가 꺼내 감. deque 의 append/popleft
@@ -186,12 +197,16 @@ class GcodePlayer(Node):
 
         topic = self.get_parameter('playback_topic').value
         self.create_subscription(PrinterCommand, topic, self.on_command, 10)
+        self.create_timer(2.0, self.check_sole_source)
         self.create_timer(self.dt, self.tick)
         self.create_timer(1.0 / float(self.get_parameter('status_rate').value),
                           self.publish_status)
 
+        cap = (f'{self.max_step_mm:g}mm/tick ({self.max_step_mm * self.rate:g}mm/s)'
+               if self.max_step_mm > 0.0 else '무제한')
         self.get_logger().info(
-            f'gcode player | rate={self.rate}Hz speed={self.speed_scale}x cmd={topic}')
+            f'gcode player | rate={self.rate}Hz speed={self.speed_scale}x '
+            f'max_step={cap} cmd={topic}')
 
     # ------------------------------------------------------------------
     def on_command(self, msg):
@@ -236,7 +251,9 @@ class GcodePlayer(Node):
 
         # 생성자가 첫 세그먼트를 당겨 오므로 리더가 한 줄이라도 뱉을 때까지 잠깐 막힘.
         self.stream = stream
-        self.interp = MotionInterpolator(stream, speed_scale=self.speed_scale)
+        self.interp = MotionInterpolator(stream, speed_scale=self.speed_scale,
+                                         max_step_mm=self.max_step_mm)
+        self._throttle_warned = False
         self.filename = os.path.basename(path)
         self.progress = 0.0
         self.layer = 0
@@ -305,6 +322,10 @@ class GcodePlayer(Node):
         error = self.stream.error if self.stream is not None else None
         moves = self.stream.parser.move_count if self.stream is not None else 0
         warnings = len(self.stream.parser.warnings) if self.stream is not None else 0
+        effective = ''
+        if self.interp is not None and self.interp.throttled_ticks:
+            effective = (f' 실제평균={self.interp.effective_scale:.1f}x'
+                         f'(요청 {self.speed_scale:g}x)')
         self.discard()
 
         if error is not None:
@@ -315,7 +336,7 @@ class GcodePlayer(Node):
             self.progress = 1.0
             self.get_logger().info(
                 f'재생 완료 | {self.filename} moves={moves} '
-                f'layers={self.layer} warnings={warnings}')
+                f'layers={self.layer} warnings={warnings}{effective}')
         self.publish_status()
 
     def fail(self, message):
@@ -383,6 +404,7 @@ class GcodePlayer(Node):
         """
         for text in self.take_warnings():
             self.get_logger().warn(text)
+        self.report_throttle()
 
         status = PrinterStatus()
         status.header.stamp = self.get_clock().now().to_msg()
@@ -392,6 +414,50 @@ class GcodePlayer(Node):
         status.total_layers = 0                 # 총 층수는 끝까지 읽기 전엔 모름
         status.filename = self.filename
         self.status_pub.publish(status)
+
+    def check_sole_source(self):
+        """`/printer/target` 의 값 소스가 나 하나인지 2 초마다 확인.
+
+        값 소스는 배타 선택임 (sim.launch.py). 플레이어가 둘이면 각자의 보간기가
+        서로 다른 진행률로 같은 토픽에 50Hz 씩 쏘고, 상태 노드는 그때그때 온 값을
+        그대로 쓰므로 헤드가 두 지점 사이를 오감. 새로 띄운 쪽은 파일 맨 앞
+        (0,0,0) 에서 출발하므로 **"영점으로 돌아갔다 다시 G-code 좌표로 감"** 이 됨.
+
+        원인은 대개 앞 실행의 플레이어가 고아로 살아남은 것. `/printer/playback`
+        은 그 고아에게도 그대로 도달하므로 load_gcode 를 쏘면 둘이 같이 재생을 시작함.
+
+            ps -ef | grep -E 'gcode_player|printer_state_node'
+            pkill -f voron24_                # 확인 후 정리
+        """
+        others = self.count_publishers('/printer/target') - 1
+        if others > 0:
+            if not self._dup_warned:
+                self._dup_warned = True
+                self.get_logger().error(
+                    f'/printer/target 에 다른 값 소스가 {others} 개 더 있음 — 값 소스는 '
+                    '배타 선택임. 헤드가 영점과 G-code 좌표 사이를 오가면 그 탓이며 '
+                    '대개 앞 실행의 고아 플레이어임: '
+                    "ps -ef | grep voron24_ 로 확인 후 pkill -f voron24_")
+        elif self._dup_warned:
+            self._dup_warned = False
+            self.get_logger().info('/printer/target 발행자가 다시 하나가 됨')
+
+    def report_throttle(self):
+        """거리 상한에 걸렸음을 재생당 한 번 알림.
+
+        조용히 느려지면 "배속을 100 으로 줬는데 왜 이러지" 로 끝남. 요청 배속과 실제
+        배속을 같이 찍어 "이 배속으로 연속 재생이 안 됨" 을 눈에 보이게 함.
+        """
+        if self._throttle_warned or self.interp is None:
+            return
+        if not self.interp.throttled_ticks:
+            return
+        self._throttle_warned = True
+        self.get_logger().warn(
+            f'틱당 이동 상한({self.max_step_mm:g}mm)에 걸림 — 요청 {self.speed_scale:g}x '
+            f'대신 약 {self.interp.effective_scale:.1f}x 로 재생함. '
+            '더 빨리 보려면 max_step_mm 을 올리되(0 이면 무제한) 헤드가 경로를 '
+            '건너뛰고 Unity 쪽이 목표를 못 따라감')
 
     def take_warnings(self):
         """리더 스레드가 쌓아 둔 파서 경고를 노드 스레드로 옮김."""

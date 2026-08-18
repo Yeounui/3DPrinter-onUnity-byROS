@@ -3,15 +3,15 @@ using UnityEngine;
 namespace Voron24.Robot
 {
     /// <summary>
-    /// ROS 연결 없이 Unity 단독으로 조인트를 흔든다.
+    /// ROS 연결 없이 Unity 단독 조인트 구동.
     ///
     /// 용도:
-    ///   - C 가 아직 엔드포인트를 안 올렸을 때 B 가 먼저 작업 시작
-    ///   - ROS 연결 문제인지 Unity 문제인지 切り分け
-    ///   - 데모 중 네트워크가 끊겼을 때의 폴백
+    ///   - C가 아직 endpoint 안 올렸을 때 B 선행 작업
+    ///   - ROS/Unity 문제 절분
+    ///   - 데모 중 네트워크 단절 시 fallback
     ///
-    /// ros2 의 mock_publisher 와 동일한 패턴/수식을 쓴다.
-    /// (voron24_gcode/patterns.py 와 반드시 동기화할 것)
+    /// ros2 mock_publisher와 동일 패턴/수식.
+    /// (voron24_gcode/patterns.py와 동기화 필수)
     /// </summary>
     public class LocalMockDriver : MonoBehaviour
     {
@@ -23,7 +23,7 @@ namespace Voron24.Robot
         [SerializeField] float margin = 0.010f;
         [SerializeField] float period = 12f;
 
-        [Tooltip("ROS 가 연결되면 자동으로 비활성화")]
+        [Tooltip("ROS 연결 시 자동 비활성화")]
         [SerializeField] bool yieldToRos = true;
 
         float _t;

@@ -36,6 +36,10 @@ unity/Voron24Twin/.vscode/
 *.FCStd1
 *.FCBak
 
+# ---- 로컬 테스트 입력 ----
+# 슬라이싱·재생 실험용 STL/G-code 파일 경로.
+test/
+
 # ---- OS ----
 .DS_Store
 Thumbs.db

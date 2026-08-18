@@ -3,8 +3,8 @@ using System.Collections.Generic;
 using UnityEngine;
 
 /// <summary>
-/// Unity 초기화 흐름의 최소 manager 골격.
-/// 현재 버전은 한 부품·한 로봇축·한 방향의 반복 탐색을 시험한다.
+/// Unity 초기화 흐름 최소 manager 골격.
+/// 현재 버전: 한 부품·한 로봇축·한 방향 반복 탐색 시험.
 /// </summary>
 public class InitializationManager : MonoBehaviour
 {
@@ -42,7 +42,7 @@ public class InitializationManager : MonoBehaviour
     public GeometrySliderConstraint sliderConstraint;
     public Transform movingBody;
 
-    [Tooltip("모든 부품이 공유하는 로봇 좌표 기준입니다. 현재는 base_link/ReferenceFrame을 사용합니다.")]
+    [Tooltip("모든 부품이 공유하는 로봇 좌표 기준. 현재 base_link/ReferenceFrame 사용")]
     public Transform robotCoordinateFrame;
 
     public RobotAxis robotAxis = RobotAxis.Z;
@@ -50,7 +50,7 @@ public class InitializationManager : MonoBehaviour
     [Min(0.001f)]
     public float stepDistance = 1f;
 
-    [Tooltip("충돌에서 먼 구간에 사용할 초기 스텝입니다. 충돌 후보가 나오면 절반씩 줄어듭니다.")]
+    [Tooltip("충돌에서 먼 구간용 초기 스텝. 충돌 후보 발견 시 절반씩 축소")]
     [Min(0.001f)]
     public float coarseStepDistance = 4f;
 
@@ -80,20 +80,20 @@ public class InitializationManager : MonoBehaviour
     public Vector3 blockedCandidateRobotPosition;
 
     [Header("Collision Roots")]
-    [Tooltip("이동 링크의 Collision. 하위 Collider를 자동 수집합니다.")]
+    [Tooltip("이동 링크 Collision. 하위 Collider 자동 수집")]
     public Transform movingCollisionRoot;
 
-    [Tooltip("충돌 검사 대상 링크의 Collision. 하위 Collider를 자동 수집합니다.")]
+    [Tooltip("충돌 검사 대상 링크 Collision. 하위 Collider 자동 수집")]
     public Transform obstacleCollisionRoot;
 
-    [Tooltip("Trigger Collider를 충돌 검사에 포함합니다.")]
+    [Tooltip("Trigger Collider 충돌 검사 포함")]
     public bool includeTriggers;
 
-    [Tooltip("활성화하면 현재 이동 루트를 제외한 씬의 모든 Collision 루트를 장애물로 수집합니다.")]
+    [Tooltip("활성화 시 현재 이동 루트 제외 씬 전체 Collision 루트를 장애물로 수집")]
     public bool collectAllSceneCollisionRoots = true;
 
     [Header("Initial Collision Baseline")]
-    [Tooltip("초기 상태에서 이미 겹친 충돌쌍의 허용 증가 여유입니다.")]
+    [Tooltip("초기 상태 기존 겹침 충돌쌍의 허용 증가 여유")]
     [Min(0f)]
     public float baselinePenetrationTolerance = 0.01f;
 
@@ -126,7 +126,7 @@ public class InitializationManager : MonoBehaviour
     {
         if (initializationRoutine != null)
         {
-            Debug.LogWarning("[InitializationManager] 초기화가 이미 실행 중입니다.", this);
+            Debug.LogWarning("[InitializationManager] 초기화 이미 실행 중", this);
             return;
         }
 
@@ -147,12 +147,12 @@ public class InitializationManager : MonoBehaviour
 
         StopCoroutine(initializationRoutine);
         initializationRoutine = null;
-        SetState(InitializationState.Idle, "초기화를 중지했습니다.");
+        SetState(InitializationState.Idle, "초기화 중지");
     }
 
     /// <summary>
-    /// 현재 위치에서 지정한 로봇축 좌표까지 한 스텝씩 이동한다.
-    /// 축 범위의 반대편에서 중앙으로 복귀할 때 사용하며, 순간이동을 하지 않는다.
+    /// 현재 위치에서 지정 로봇축 좌표까지 한 스텝씩 이동.
+    /// 축 범위 반대편에서 중앙 복귀 시 사용. 순간이동 안 함.
     /// </summary>
     public IEnumerator MoveToRobotAxisCoordinateStepped(
         RobotAxis axis,
@@ -161,7 +161,7 @@ public class InitializationManager : MonoBehaviour
     {
         if (movingBody == null || robotCoordinateFrame == null)
         {
-            SetState(InitializationState.Error, $"{label} 이동 설정이 없습니다.");
+            SetState(InitializationState.Error, $"{label} 이동 설정 없음");
             yield break;
         }
 
@@ -184,7 +184,7 @@ public class InitializationManager : MonoBehaviour
             {
                 SetState(
                     InitializationState.Blocked,
-                    $"{label} 복귀 중 충돌하여 중지했습니다. {collisionLog}");
+                    $"{label} 복귀 중 충돌로 중지 {collisionLog}");
                 yield break;
             }
 
@@ -211,13 +211,13 @@ public class InitializationManager : MonoBehaviour
         switch (axis)
         {
             case RobotAxis.X:
-                // Robot X = 공통 기준의 forward = 로컬 z
+                // Robot X = 공통 기준 forward = 로컬 z
                 return robotPosition.z;
             case RobotAxis.Y:
-                // Robot Y = 공통 기준의 up = 로컬 y
+                // Robot Y = 공통 기준 up = 로컬 y
                 return robotPosition.y;
             case RobotAxis.Z:
-                // Robot Z = 공통 기준의 -right = 로컬 x의 음수
+                // Robot Z = 공통 기준 -right = 로컬 x 음수
                 return -robotPosition.x;
             default:
                 return 0f;
@@ -228,7 +228,7 @@ public class InitializationManager : MonoBehaviour
     {
         SetState(InitializationState.Preparing, "단일 축 초기화 준비");
 
-        // GeometrySliderConstraint의 첫 Update가 끝난 뒤 현재 위치를 기준점으로 사용한다.
+        // GeometrySliderConstraint 첫 Update 완료 후 현재 위치를 기준점으로 사용
         yield return null;
         Physics.SyncTransforms();
         CaptureBaselineCollisions();
@@ -242,7 +242,7 @@ public class InitializationManager : MonoBehaviour
         {
             SetState(
                 InitializationState.Error,
-                $"로봇축과 constraint 자유축이 평행하지 않습니다. " +
+                $"로봇축과 constraint 자유축 비평행. " +
                 $"RobotAxis={robotAxisVector}, ConstraintAxis={constraintAxis}, " +
                 $"Alignment={axisAlignment:F4}");
             initializationRoutine = null;
@@ -292,7 +292,7 @@ public class InitializationManager : MonoBehaviour
                     robotCoordinateFrame.InverseTransformPoint(blockedCandidateWorldPosition);
                 SetState(
                     InitializationState.Blocked,
-                    $"{stepIndex}번째 후보에서 탐색을 중지했습니다. " +
+                    $"{stepIndex}번째 후보에서 탐색 중지 " +
                     $"LastSafeRobot={lastSafeRobotPosition}, " +
                     $"BlockedCandidateRobot={blockedCandidateRobotPosition}, " +
                     collisionLog);
@@ -301,7 +301,7 @@ public class InitializationManager : MonoBehaviour
 
             SetState(
                 InitializationState.Moving,
-                $"안전한 후보를 확정합니다. SafeSteps={completedSafeSteps + 1}");
+                $"안전 후보 확정 SafeSteps={completedSafeSteps + 1}");
             movingBody.position += candidateDelta;
             Physics.SyncTransforms();
             completedSafeSteps++;
@@ -323,7 +323,7 @@ public class InitializationManager : MonoBehaviour
                 robotCoordinateFrame.InverseTransformPoint(blockedCandidateWorldPosition);
             SetState(
                 InitializationState.LimitReached,
-                $"최대 스텝까지 도달했습니다. LastSafeRobot={lastSafeRobotPosition}, " +
+                $"최대 스텝 도달 LastSafeRobot={lastSafeRobotPosition}, " +
                 $"NextCandidateRobot={blockedCandidateRobotPosition}, " +
                 $"SafeSteps={completedSafeSteps}");
         }
@@ -341,7 +341,7 @@ public class InitializationManager : MonoBehaviour
             {
                 SetState(
                     InitializationState.Ready,
-                    $"Robot {robotAxis} 반복 탐색과 스텝 복귀를 완료했습니다. " +
+                    $"Robot {robotAxis} 반복 탐색 + 스텝 복귀 완료 " +
                     $"SafeSteps={completedSafeSteps}");
             }
         }
@@ -439,7 +439,7 @@ public class InitializationManager : MonoBehaviour
         }
 
         Debug.Log(
-            $"[InitializationManager] 초기 충돌 기준 저장 | OverlapPairs={overlapCount}",
+            $"[InitializationManager] 초기 충돌 baseline 저장 | OverlapPairs={overlapCount}",
             this);
     }
 
@@ -477,32 +477,32 @@ public class InitializationManager : MonoBehaviour
     private bool ValidateConfiguration()
     {
         if (sliderConstraint == null || !sliderConstraint.enabled)
-            return FailConfiguration("GeometrySliderConstraint가 없거나 비활성화되어 있습니다.");
+            return FailConfiguration("GeometrySliderConstraint 없음 또는 비활성 상태");
 
         if (sliderConstraint.fixedReferenceFrame == null)
-            return FailConfiguration("Fixed Reference Frame이 없습니다.");
+            return FailConfiguration("Fixed Reference Frame 없음");
 
         if (robotCoordinateFrame == null)
-            return FailConfiguration("공통 로봇 좌표 기준이 없습니다.");
+            return FailConfiguration("공통 로봇 좌표 기준 없음");
 
         if (movingBody == null)
-            return FailConfiguration("Moving Body가 없습니다.");
+            return FailConfiguration("Moving Body 없음");
 
         if (movingCollisionRoot == null)
-            return FailConfiguration("Moving Collision Root가 없습니다.");
+            return FailConfiguration("Moving Collision Root 없음");
 
         if (obstacleCollisionRoot == null)
-            return FailConfiguration("Obstacle Collision Root가 없습니다.");
+            return FailConfiguration("Obstacle Collision Root 없음");
 
         if (movingCollisionRoot == obstacleCollisionRoot)
-            return FailConfiguration("Moving과 Obstacle Collision Root는 달라야 합니다.");
+            return FailConfiguration("Moving과 Obstacle Collision Root 동일 불가");
 
         return true;
     }
 
     private Vector3 GetRobotAxisVector(RobotAxis axis)
     {
-        // 현재 모델의 base_link/ReferenceFrame 기준 매핑:
+        // 현재 모델 base_link/ReferenceFrame 기준 매핑:
         // Robot X = frame.forward, Robot Y = frame.up, Robot Z = -frame.right.
         switch (axis)
         {
