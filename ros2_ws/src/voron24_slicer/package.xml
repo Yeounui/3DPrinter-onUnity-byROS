@@ -1,0 +1,32 @@
+<?xml version="1.0"?>
+<?xml-model href="http://download.ros.org/schema/package_format3.xsd" schematypens="http://www.w3.org/2001/XMLSchema"?>
+<package format="3">
+  <name>voron24_slicer</name>
+  <version>0.1.0</version>
+  <description>STL -> G-code slicing action server for the Voron 2.4 digital twin (docs/04b section 6)</description>
+  <maintainer email="team@example.com">voron24 team</maintainer>
+  <license>MIT</license>
+
+  <depend>rclpy</depend>
+  <depend>action_msgs</depend>
+
+  <!-- SliceModel.action 은 여기가 아니라 voron24_slicer_msgs 에 있다.
+       이유는 그쪽 package.xml 주석 참조 — 요약하면 rosidl 생성 패키지와 노드용
+       파이썬 패키지가 같은 이름이면 CMake 타깃이 겹치기 때문이고, 문서(04b §276)가
+       지키려던 "voron24_msgs 를 오염시키지 말 것" 은 그대로 지켜진다. -->
+  <depend>voron24_slicer_msgs</depend>
+
+  <!-- job_starter 가 결과 경로를 load_gcode 로 발행할 때만 쓴다. -->
+  <depend>voron24_msgs</depend>
+
+  <!-- 슬라이서 실행파일은 apt 패키지이지 rosdep 키가 아니다.
+       없어도 노드는 뜨고 goal 이 success=false 로 떨어진다 (04b §280
+       "런타임 의존성은 순수 파이썬 + 외부 실행파일 하나"). -->
+
+  <test_depend>ament_copyright</test_depend>
+  <test_depend>ament_flake8</test_depend>
+  <test_depend>ament_pep257</test_depend>
+  <test_depend>python3-pytest</test_depend>
+
+  <export><build_type>ament_python</build_type></export>
+</package>

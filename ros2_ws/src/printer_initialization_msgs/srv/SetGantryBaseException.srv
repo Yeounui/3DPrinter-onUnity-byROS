@@ -1,5 +1,0 @@
-float64 z_min
-float64 z_max
----
-bool accepted
-string rule_id

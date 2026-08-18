@@ -1,5 +1,0 @@
-string[] joint_names
-float64[] joint_positions
----
-string[] link_a
-string[] link_b

@@ -1,8 +1,0 @@
-# Initialization-only collision exceptions.
-# Every pair is checked unless a rule below matches the active motion.
-rules:
-  - id: ignore_z_gantry_base_contact_while_homing_negative_z
-    active_joint: base_to_z_gantry
-    direction: negative
-    ignore_pairs:
-      - [base_link, z_gantry_link]
