@@ -272,8 +272,17 @@ Unity/CLI ──▶ SliceModel action ──▶ voron24_slicer ──▶ (result
 | result | `string gcode_path`, `bool success`, `string message` |
 
 - **액션이지 서비스가 아니다.** 슬라이싱은 수십 초 걸리고 취소가 가능해야 한다.
-- `SliceModel.action` 은 **`voron24_slicer` 패키지 자체에 정의**한다. `voron24_msgs` 에
+- `SliceModel.action` 은 **`voron24_slicer_msgs` 패키지에 정의**한다. `voron24_msgs` 에
   넣으면 계약 변경(PR + 3 인 승인)이 된다.
+
+  > 원래 이 문서는 `voron24_slicer` 자체에 두라고 적었으나 그렇게는 빌드가 안 된다.
+  > `rosidl_generate_interfaces(voron24_slicer ...)` 가 이미 같은 이름의 파이썬 패키지와
+  > 빌드 타깃을 만들기 때문에, 거기에 `ament_python_install_package(voron24_slicer)` 를
+  > 더하면 `ament_cmake_python_build_voron24_slicer_egg` 타깃이 두 번 생성돼 CMake 가
+  > 거부한다. 그래서 인터페이스만 `voron24_slicer_msgs`(ament_cmake)로 떼고 노드는
+  > `voron24_slicer`(ament_python)에 남겼다 — ROS2 에서 가장 표준적인 구성이다.
+  > **이 문서가 막으려던 것은 "계약 패키지(`voron24_msgs`) 오염" 이고 그 의도는 그대로
+  > 지켜진다.** 클라이언트가 쓸 타입 이름은 `voron24_slicer_msgs/action/SliceModel` 이다.
 - 노드 내부에서는 `subprocess` 로 CLI 를 호출한다. libslic3r 을 링크하지 않는 이유:
   **AGPL-3.0** 이라 링크 시 라이선스가 전파된다. 별도 프로세스 exec 은 해당하지 않는다.
   빌드 의존(Boost/TBB/CGAL/OpenVDB)을 colcon 에 얹지 않아도 되는 것은 덤이다.
@@ -347,7 +356,8 @@ ros2 topic echo /printer/target
 정의가 안 바뀌므로 계약 §3 은 그대로고 `contract_check.py` 도 볼 것이 없다. 다만 계약
 §5 토픽 표에는 두 줄을 추가해야 한다.
 
-`SliceModel.action` 은 `voron24_slicer` 패키지 안에 두므로 계약과 무관하다.
+`SliceModel.action` 은 `voron24_slicer_msgs` 패키지 안에 두므로 계약과 무관하다
+(§6 의 각주 참조 — `voron24_slicer` 에 두면 CMake 타깃이 충돌해 빌드가 안 된다).
 
 ## 검증
 

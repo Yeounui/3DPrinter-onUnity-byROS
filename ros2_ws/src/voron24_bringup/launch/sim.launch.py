@@ -4,6 +4,7 @@
     ros2 launch voron24_bringup sim.launch.py                                  # 수동 조작
     ros2 launch voron24_bringup sim.launch.py source:=gcode file:=/abs/a.gcode # G-code 재생
     ros2 launch voron24_bringup sim.launch.py source:=gcode file:=... speed:=25.0
+    ros2 launch voron24_bringup sim.launch.py source:=stl   file:=/abs/a.stl   # 슬라이싱 후 재생
     ros2 launch voron24_bringup sim.launch.py unity:=none                      # ROS 단독 (RViz 자동 ON)
 
 | 인자 | 기본값 | 값 |
@@ -27,9 +28,15 @@ mock.launch.py 는 건드리지 않음. 그쪽은 W1 회귀 기준선이고 값 
                                  jog 적분·리밋 클램프·명령 릴레이가 통째로 빠짐
     manual_publisher (A, 4.5)    없으면 -> mock_publisher 로 대체 (patterns.py 공유)
     Unity 리눅스 빌드 (0~2 단계)  없으면 -> unity:=editor 로 강등. 엔드포인트만 뜸
+    voron24_slicer (B, 6)        없으면 -> source:=stl 이 슬라이싱만 생략. 플레이어는
+                                 그대로 떠 있어 load_gcode 를 직접 쏘면 재생됨.
+                                 prusa-slicer 실행파일 유무는 슬라이서 노드가 판단하며
+                                 없으면 goal 이 success=false 로 떨어질 뿐 launch 는 삶
 
 `file:=` 은 노드 파라미터가 아니라 `/printer/cmd` 에 한 번 발행하는 `load_gcode`.
 파일 진입점을 둘로 늘리지 않기 위함 (04b §"file:= 은 파라미터가 아니라 발행이다").
+`source:=stl` 은 그 한 발을 job_starter 가 대신 쏜다 — STL 은 "슬라이싱 액션 ->
+result 의 경로" 두 단계라 `ros2 topic pub` 한 줄로 안 되기 때문 (04b §248).
 """
 import os
 
@@ -184,10 +191,27 @@ def launch_setup(context, *args, **kwargs):
             notes.append(LogInfo(msg=f'[sim] source:=gcode 라 pattern:={pattern} 은 무시함'))
 
     else:   # stl
-        # 6 단계. 슬라이서 액션 서버와 job_starter 가 들어와야 성립.
-        raise RuntimeError('source:=stl 은 아직 없음 — voron24_slicer + job_starter 가 '
-                           '6 단계 (docs/04b_gcode_pipeline.md §6). '
-                           '지금은 슬라이싱된 G-code 를 source:=gcode 로 넘길 것')
+        # gcode 와 토폴로지가 같음. 플레이어와 load_gcode 는 그대로고 앞에 STL -> G-code
+        # 한 단이 더 붙을 뿐 (04b §6). 그래서 값 소스 노드는 gcode 분기와 같은 것을 씀.
+        actions.append(Node(
+            package='voron24_gcode', executable='gcode_player',
+            name='gcode_player', output='screen',
+            parameters=[{'speed_default': speed, 'playback_topic': playback_topic}],
+            remappings=[('/printer/target', target_topic)]))
+        # 슬라이서는 액션 서버라 그래프 안에 노드로 들어옴. launch 가 ExecuteProcess 로
+        # prusa-slicer 를 직접 돌리지 않는 이유 (04b §257).
+        if executable_path('voron24_slicer', 'slicer_node'):
+            actions.append(Node(
+                package='voron24_slicer', executable='slicer_node',
+                name='voron24_slicer', output='screen'))
+        else:
+            notes.append(LogInfo(msg='[sim] voron24_slicer 없음 — 슬라이싱 불가. '
+                                     '`colcon build --packages-select voron24_slicer_msgs '
+                                     'voron24_slicer` '
+                                     '후 다시 실행할 것 (docs/04b §6). 플레이어는 떠 '
+                                     '있으므로 load_gcode 를 직접 쏘면 재생은 됨'))
+        if pattern != 'none':
+            notes.append(LogInfo(msg=f'[sim] source:=stl 라 pattern:={pattern} 은 무시함'))
 
     # ------------------------------------------------------------------
     # file:= — 노드가 뜬 뒤 load_gcode 한 발. 3 초는 구독이 붙을 시간.
@@ -203,6 +227,29 @@ def launch_setup(context, *args, **kwargs):
         else:
             notes.append(LogInfo(msg='[sim] file:= 없음 — 재생하려면 load_gcode 를 직접 '
                                      '발행할 것'))
+    elif source == 'stl':
+        # STL 은 "액션 send_goal -> result 의 G-code 경로를 다시 load_gcode 로" 두 단계라
+        # topic pub 한 줄로 안 됨. 그 두 단계를 묶은 것이 job_starter (04b §248).
+        # 경로가 이 노드의 파라미터로 들어가지만 gcode_player 로 가는 진입점은 여전히
+        # load_gcode 하나뿐이므로 "file:= 은 파라미터가 아니라 발행" 원칙은 그대로.
+        starter = executable_path('voron24_slicer', 'job_starter')
+        if not gcode_file:
+            notes.append(LogInfo(msg='[sim] file:= 없음 — 슬라이싱하려면 `ros2 action '
+                                     'send_goal /slice_model '
+                                     'voron24_slicer_msgs/action/SliceModel '
+                                     '"{stl_path: \'/abs/a.stl\'}"` 를 직접 쏠 것'))
+        elif starter is None:
+            notes.append(LogInfo(msg='[sim] job_starter 없음 — STL 자동 슬라이싱 생략'))
+        else:
+            path = os.path.abspath(os.path.expanduser(gcode_file))
+            if not os.path.isfile(path):
+                notes.append(LogInfo(msg=f'[sim] file 이 없음: {path}'))
+            # gcode 분기와 같은 3 초. job_starter 는 서버가 뜰 때까지 스스로도 기다리지만
+            # 로그가 뒤섞이는 것을 막는 값이기도 함.
+            actions.append(TimerAction(period=3.0, actions=[Node(
+                package='voron24_slicer', executable='job_starter',
+                name='job_starter', output='screen',
+                parameters=[{'stl_path': path, 'cmd_topic': '/printer/cmd'}])]))
     elif source == 'manual' and pattern != 'none' and state_node is not None:
         # 상태 노드의 초기 모드가 manual 이라 /printer/target 을 무시함. 패턴을 보려면
         # playing 으로 한 번 밀어줘야 함 (04a §"소스 전환은 remapping 으로").

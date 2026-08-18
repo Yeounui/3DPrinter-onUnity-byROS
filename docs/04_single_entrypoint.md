@@ -541,8 +541,10 @@ Unity/CLI ──▶ SliceModel action ──▶ voron24_slicer ──▶ (result
 | result | `string gcode_path`, `bool success`, `string message` |
 
 - **액션이지 서비스가 아니다.** 슬라이싱은 수십 초 걸리고 취소가 가능해야 한다.
-- `SliceModel.action` 은 **`voron24_slicer` 패키지 자체에 정의**한다. `voron24_msgs` 에 넣으면
-  계약 변경(PR + 3 인 승인)이 되므로 피한다.
+- `SliceModel.action` 은 **`voron24_slicer_msgs` 패키지에 정의**한다. `voron24_msgs` 에 넣으면
+  계약 변경(PR + 3 인 승인)이 되므로 피한다. 인터페이스를 `voron24_slicer` 본체에 두지 않는
+  이유는 `rosidl_generate_interfaces` 와 `ament_python_install_package` 가 같은 이름의 CMake
+  타깃을 만들어 빌드가 깨지기 때문이다 (`docs/04b_gcode_pipeline.md` §6 각주).
 - 노드 내부에서는 `subprocess` 로 CLI 를 호출한다. libslic3r 을 링크하지 않는 이유:
   **AGPL-3.0** 이라 링크 시 라이선스가 전파된다. 별도 프로세스 exec 은 해당하지 않는다.
   빌드 의존(Boost/TBB/CGAL/OpenVDB)을 colcon 에 얹지 않아도 되는 것은 덤이다.
