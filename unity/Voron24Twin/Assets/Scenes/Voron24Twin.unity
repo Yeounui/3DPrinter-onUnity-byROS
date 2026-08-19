@@ -2154,6 +2154,7 @@ GameObject:
   - component: {fileID: 963194227}
   - component: {fileID: 963194226}
   - component: {fileID: 963194229}
+  - component: {fileID: 963194230}
   m_Layer: 0
   m_Name: Main Camera
   m_TagString: MainCamera
@@ -2279,6 +2280,28 @@ MonoBehaviour:
     m_MipBias: 0
     m_VarianceClampScale: 0.9
     m_ContrastAdaptiveSharpening: 0
+--- !u!114 &963194230
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 963194225}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: dd8f0cc724bf47d99ba2ac206095c7ab, type: 3}
+  m_Name:
+  m_EditorClassIdentifier:
+  target: {fileID: 256984167}
+  targetOffset: {x: 0, y: 0.23, z: 0}
+  radius: 0.65
+  horizontalDegreesPerSecond: 12
+  minElevationDegrees: 10
+  maxElevationDegrees: 80
+  verticalDegreesPerSecond: 6
+  initialAzimuthDegrees: 180
+  initialElevationDegrees: 15
+  startMovingUp: 1
 --- !u!1 &993933389
 GameObject:
   m_ObjectHideFlags: 0
@@ -2757,6 +2780,7 @@ GameObject:
   m_Component:
   - component: {fileID: 1636371563}
   - component: {fileID: 1636371564}
+  - component: {fileID: 1636371565}
   m_Layer: 0
   m_Name: ROSConnection
   m_TagString: Untagged
@@ -2801,6 +2825,31 @@ MonoBehaviour:
   m_TFTopics:
   - /tf
   listenForTFMessages: 1
+--- !u!114 &1636371565
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1636371562}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: c5db95c57c8f5d30eb059fb8bca8d218, type: 3}
+  m_Name:
+  m_EditorClassIdentifier:
+  topic: /printer/extrusion
+  verbose: 1
+  nozzel: {fileID: 115081517}
+  bedOrigin: {fileID: 993933390}
+  filamentRoot: {fileID: 0}
+  filamentMaterial: {fileID: 0}
+  fallbackWidth: 0.005
+  layerHeightTolerance: 0.00001
+  angleToleranceDegrees: 5
+  minSegmentLength: 0.000001
+  previewSampleStep: 0.005
+  debugLogs: 1
+  debugEveryMessages: 1
 --- !u!1 &1720674802
 GameObject:
   m_ObjectHideFlags: 0
