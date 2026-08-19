@@ -1,0 +1,18 @@
+# STL -> G-code 슬라이싱 (docs/04b_gcode_pipeline.md §6).
+#
+# 서비스가 아니라 액션인 이유: 슬라이싱은 수십 초 걸리고 도중 취소가 가능해야 한다.
+# 이 정의는 voron24_msgs 가 아니라 이 패키지에 둔다 — voron24_msgs 는 인터페이스
+# 계약(§3/§6)이라 변경에 PR + 3 인 승인이 필요하고, 슬라이서는 계약 밖이다.
+
+# --- goal ---
+string stl_path       # STL 절대경로
+string profile        # 프로파일 이름. 비우면 'voron24_250' (tools/slicer/<이름>.ini)
+---
+# --- result ---
+string gcode_path     # 성공 시 산출된 G-code 절대경로. 그대로 load_gcode 페이로드가 된다
+bool   success
+string message        # 실패 사유. 성공 시에도 요약 한 줄
+---
+# --- feedback ---
+float32 progress      # 0.0 ~ 1.0. PrusaSlicer stdout 의 단계 표시에서 추정한 값
+string  stage         # 사람이 읽는 현재 단계

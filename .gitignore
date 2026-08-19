@@ -1,0 +1,55 @@
+# ---- ROS2 ----
+ros2_ws/build/
+ros2_ws/install/
+ros2_ws/log/
+# 외부 소스 — 트래킹하지 않고 ros2_ws/voron24.repos 로 vcs import 한다
+ros2_ws/src/ROS-TCP-Endpoint/
+__pycache__/
+*.pyc
+
+# ---- Unity ----
+unity/Voron24Twin/[Ll]ibrary/
+unity/Voron24Twin/[Tt]emp/
+unity/Voron24Twin/[Oo]bj/
+# Build 결과물은 LFS 로 추적(.gitattributes) — 단 Burst 디버그 정보(DoNotShip)는 제외
+unity/Voron24Twin/Build/**/*BurstDebugInformation_DoNotShip/
+unity/Voron24Twin/[Bb]uilds/
+unity/Voron24Twin/[Ll]ogs/
+unity/Voron24Twin/[Uu]serSettings/
+unity/Voron24Twin/[Mm]emoryCaptures/
+unity/Voron24Twin/[Rr]ecordings/
+unity/Voron24Twin/.vscode/
+*.csproj
+*.unityproj
+*.sln
+*.suo
+*.user
+*.booproj
+*.pidb
+*.svd
+*.pdb
+*.mdb
+*.opendb
+*.VC.db
+
+# ---- FreeCAD ----
+*.FCStd1
+*.FCBak
+
+# ---- 로컬 테스트 입력 ----
+# 슬라이싱·재생 실험용 STL/G-code 파일 경로.
+test/
+
+# ---- OS ----
+.DS_Store
+Thumbs.db
+# Windows 가 NTFS 대체 스트림으로 남기는 다운로드 출처 표식 (WSL 에서 파일로 보인다)
+*:Zone.Identifier
+*:Zone.Identifier.meta
+
+
+CLAUDE.md
+./project_init.sh
+.mcp.json
+_workspace
+.claude/
