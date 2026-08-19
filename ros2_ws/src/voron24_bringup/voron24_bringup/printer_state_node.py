@@ -14,20 +14,23 @@ printer_state_node.py
 /joint_states 로 냄. 소스 전환은 launch remapping 이 하며 값 소스 코드는 건드리지
 않음 (04a §"소스 전환은 remapping 으로").
 
-     Unity 키보드/UI ──┐
-                       ├──▶ /printer/cmd ──▶ 이 노드 ──▶ /joint_states ──▶ RViz, Unity
-     터미널 키보드 ────┘                       │           ▲
-                                   /printer/playback   /printer/target
-                                              ▼           │
-                                           값 소스 (manual_publisher / gcode_player)
+     터미널 키보드 ──▶ manual_publisher ──▶ /printer/cmd ──▶ 이 노드
+                                                               │       ▲
+                                                   /printer/playback   /printer/target
+                                                               ▼       │
+                                              값 소스 (manual_publisher / gcode_player)
+                                                               │
+                                             /joint_states, /printer/extrusion
+                                                               ▼
+                                                          RViz, Unity
 
-이 노드가 직접 하는 것은 넷뿐 — jog 적분, home, 리밋 클램프, 모드 관리.
+이 노드가 직접 하는 것은 jog 적분, home, 수동 압출 상태, 리밋 클램프, 모드 관리다.
 set_speed 와 pause 처럼 **시간축**을 다루는 명령은 보간기를 쥔 값 소스가 처리해야
 하므로 /printer/playback 으로 되넘김. 여기서 값을 붙잡는 방식으로 구현하면 재개 시
 좌표가 튐.
 
 단위 — /printer/cmd 의 jog 만 **mm** (계약 §2 유일한 SI 예외). 나머지 입출력은
-전부 m 이고, mm→m 변환은 jog_to_m() 한 곳에서만 일어남. 중복 변환 주의.
+전부 m 이고, mm→m 변환은 MM_TO_M을 쓰는 jog() 한 곳에서만 일어남. 중복 변환 주의.
 """
 import os
 import re
@@ -39,7 +42,7 @@ from sensor_msgs.msg import JointState
 # voron24_msgs 가 아직 안 깔렸어도 /printer/target -> /joint_states 통과만은 되게 함.
 # mock_publisher_node 의 HAS_MSGS 방어와 같은 이유 (CLAUDE.md — 이 방어를 제거하지 말 것).
 try:
-    from voron24_msgs.msg import PrinterCommand, PrinterStatus
+    from voron24_msgs.msg import ExtrusionPoint, PrinterCommand, PrinterStatus
     HAS_MSGS = True
 except ImportError:  # pragma: no cover
     HAS_MSGS = False
@@ -51,11 +54,12 @@ TARGET_TOPIC = '/printer/target'
 PLAYBACK_TOPIC = '/printer/playback'
 STATE_TOPIC = '/joint_states'
 STATUS_TOPIC = '/printer/status'
+EXTRUSION_TOPIC = '/printer/extrusion'
 
 MM_TO_M = 0.001                                   # 이 상수를 쓰는 곳이 곧 변환 지점
 
 # 상태 노드가 직접 처리하는 명령 / 값 소스로 되넘기는 명령.
-DIRECT_COMMANDS = ('jog', 'home')
+DIRECT_COMMANDS = ('jog', 'home', 'set_extrusion')
 STREAM_COMMANDS = ('load_gcode', 'pause', 'resume', 'stop', 'set_speed')
 
 # ----------------------------------------------------------------------
@@ -161,6 +165,8 @@ class PrinterState(Node):
 
         self.declare_parameter('rate', 50.0)            # /joint_states 발행 주기. 계약 §6
         self.declare_parameter('status_rate', 5.0)      # /printer/status. 계약 §6
+        self.declare_parameter('manual_extrusion_width', 0.005)   # 필라멘트 폭 [m]
+        self.declare_parameter('manual_layer_height', 0.0002)     # 레이어 높이 [m]
 
         self.rate = float(self.get_parameter('rate').value)
         self.dt = 1.0 / self.rate
@@ -174,6 +180,11 @@ class PrinterState(Node):
         self.clamp_count = 0
         self._clamp_warned = False          # 첫 위반에서 한 번만 경고 (04a §5b)
         self._stray_target_warned = False
+        self.extruding = False
+        self.manual_extrusion_width = max(
+            float(self.get_parameter('manual_extrusion_width').value), 1e-6)
+        self.manual_layer_height = max(
+            float(self.get_parameter('manual_layer_height').value), 1e-6)
 
         self.js_pub = self.create_publisher(JointState, STATE_TOPIC, 10)
         self.create_subscription(JointState, TARGET_TOPIC, self.on_target, 10)
@@ -184,11 +195,14 @@ class PrinterState(Node):
         self.cmd_sub = None
         self.playback_pub = None
         self.status_pub = None
+        self.extrusion_pub = None
         if HAS_MSGS:
             self.playback_pub = self.create_publisher(PrinterCommand, PLAYBACK_TOPIC, 10)
             self.cmd_sub = self.create_subscription(
                 PrinterCommand, CMD_TOPIC, self.on_command, 10)
             self.status_pub = self.create_publisher(PrinterStatus, STATUS_TOPIC, 10)
+            self.extrusion_pub = self.create_publisher(
+                ExtrusionPoint, EXTRUSION_TOPIC, 10)
             self.create_timer(1.0 / float(self.get_parameter('status_rate').value),
                               self.publish_status)
         else:
@@ -233,6 +247,8 @@ class PrinterState(Node):
             self.jog(msg.args)
         elif command == 'home':
             self.home(msg.payload)
+        elif command == 'set_extrusion':
+            self.set_extrusion(msg.args)
         elif command in STREAM_COMMANDS:
             if not self.relay(msg):
                 self.get_logger().warn(f'릴레이 불가 — voron24_msgs 없음: {command}')
@@ -244,16 +260,19 @@ class PrinterState(Node):
     def after_relay(self, command, msg):
         """릴레이 후 모드 전환. 값은 이미 넘겼고 여기서는 상태만 움직임."""
         if command == 'load_gcode':
+            self.set_extrusion((0.0,), reason='load_gcode')
             self.filename = os.path.basename(msg.payload.strip())
             self.paused = False
             self.set_mode('playing', f'load_gcode {self.filename or "?"}')
         elif command == 'resume':
+            self.set_extrusion((0.0,), reason='resume')
             self.paused = False
             self.set_mode('playing', 'resume')
         elif command == 'pause':
             # 모드는 그대로 playing — 값 소스가 커서를 쥔 채 멈춘 것뿐.
             self.paused = True
         elif command == 'stop':
+            self.set_extrusion((0.0,), reason='stop')
             self.filename = ''
             self.set_mode('manual', 'stop')
         # set_speed 는 모드를 되돌리지 않음. 재생 중 배속만 올리는 것이 의도인데 그때마다
@@ -263,9 +282,8 @@ class PrinterState(Node):
     def jog(self, args):
         """델타를 좌표로 누산. **args 는 mm** (계약 §2 유일한 SI 예외).
 
-        적분을 이 노드만 하는 이유 — 입력 장치(Unity 키보드, 터미널 키보드, 향후 UI)는
-        전부 델타만 던지는 동등한 peer. 어느 한쪽이 좌표를 들고 있으면 다른 쪽에서
-        움직인 만큼이 그쪽 기준에서 사라짐.
+        적분을 이 노드만 하는 이유 — 터미널 키보드와 향후 UI는 델타만 던지는 입력
+        장치다. 어느 입력 쪽이 좌표를 들고 있으면 다른 쪽에서 움직인 만큼이 사라짐.
         """
         if not args:
             self.get_logger().warn('jog 에 args(dx, dy, dz)가 없음')
@@ -285,6 +303,8 @@ class PrinterState(Node):
         playing 중이면 먼저 stop 을 되넘김 — 값 소스가 계속 target 을 쏘는 채로
         좌표만 0 으로 밀면 다음 틱에 도로 끌려감 (04a §5b 표).
         """
+        self.set_extrusion((0.0,), reason='home')
+
         if self.mode == 'playing':
             self.relay(self._command('stop'))
             self.filename = ''
@@ -302,6 +322,42 @@ class PrinterState(Node):
             return
         self.set_position(target)
         self.get_logger().info(f'home {"+".join(moved)}')
+
+    def set_extrusion(self, args, reason='keyboard'):
+        """수동 압출 상태 설정. args[0] >= 0.5 이면 on, 아니면 off."""
+        if not args:
+            self.get_logger().warn('set_extrusion 에 args[0] (0 또는 1)이 없음')
+            return
+
+        enabled = float(args[0]) >= 0.5
+        if enabled and self.mode == 'playing':
+            self.relay(self._command('pause'))
+            self.paused = True
+            self.set_mode('manual', 'manual extrusion')
+
+        changed = enabled != self.extruding
+        self.extruding = enabled
+        self.publish_extrusion(enabled)
+        if changed:
+            self.get_logger().info(
+                f'manual extrusion {"ON" if enabled else "OFF"} ({reason})')
+
+    def publish_extrusion(self, enabled):
+        """현재 노즐 목표 위치를 bed_origin 기준 압출 점으로 발행."""
+        if self.extrusion_pub is None:
+            return
+
+        msg = ExtrusionPoint()
+        msg.header.stamp = self.get_clock().now().to_msg()
+        msg.header.frame_id = 'bed_origin'
+        msg.position.x = float(self.position[0])
+        msg.position.y = float(self.position[1])
+        msg.position.z = float(self.position[2])
+        msg.width = self.manual_extrusion_width
+        msg.height = self.manual_layer_height
+        msg.extruding = bool(enabled)
+        msg.layer = 0
+        self.extrusion_pub.publish(msg)
 
     def set_position(self, values):
         """클램프 후 반영. 좌표가 바뀌는 유일한 통로 — jog·home·target 이 전부 여기로."""
@@ -365,6 +421,10 @@ class PrinterState(Node):
         msg.velocity = [(x - px) / self.dt, (y - py) / self.dt, (z - pz) / self.dt]
         self.js_pub.publish(msg)
         self._prev = (x, y, z)
+        if self.extruding:
+            # 조인트가 물리적으로 목표에 수렴하는 동안에도 Unity가 실제 노즐 중심을
+            # 계속 샘플링할 수 있도록 수동 압출 중에는 joint_states와 같은 50Hz로 발행.
+            self.publish_extrusion(True)
 
     def check_sole_ownership(self):
         """`/joint_states` 발행자가 나 하나인지 2 초마다 확인.
@@ -417,7 +477,7 @@ class PrinterState(Node):
         status = PrinterStatus()
         status.header.stamp = self.get_clock().now().to_msg()
         if self.mode == 'manual':
-            status.state = 'idle'
+            status.state = 'printing' if self.extruding else 'idle'
         else:
             status.state = 'paused' if self.paused else 'printing'
         status.progress = 0.0           # 진행률은 보간기를 쥔 값 소스만 알 수 있음
@@ -435,6 +495,8 @@ def main(args=None):
     except KeyboardInterrupt:
         pass
     finally:
+        if node.extruding and rclpy.ok():
+            node.set_extrusion((0.0,), reason='shutdown')
         if node.clamp_count:
             node.get_logger().info(f'종료 | 리밋 클램프 {node.clamp_count} 회')
         node.destroy_node()

@@ -7,6 +7,7 @@
 #   "stop"       args = []
 #   "load_gcode" payload = 파일 절대경로
 #   "set_speed"  args = [scale]
+#   "set_extrusion" args = [0.0 | 1.0]
 
 string    command
 float32[] args

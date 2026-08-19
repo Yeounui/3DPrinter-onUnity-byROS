@@ -6,6 +6,13 @@ ROS2를 통한 Unity 환경 내 프린터 모델 메뉴얼 키보드 조작 및 
 
 ---
 
+![1-1](docs/media/demo-102437-first-minute.gif)
+![1-2](docs/media/demo-102437-last-three-minutes.gif)
+![2-1](docs/media/demo-110632-first-minute.gif)
+![2-2](docs/media/demo-110632-last-three-minutes.gif)
+
+---
+
 ## 아키텍처
 
 ```mermaid
@@ -134,7 +141,7 @@ sudo apt install -y prusa-slicer    # Ubuntu 24.04 noble/universe, 2.7.x
 ### 기타
 
 - **Git LFS** — `*.stl`, `*.step`, `*.FCStd`, `*.gcode` 추적
-- **vcs** — `sudo apt install -y python3-vcstool` (외부 레포 가져오기)
+- **vcs** — `sudo apt install -y python3-vcstool` (외부 의존성 패키지 설치)
 
 ---
 
@@ -160,33 +167,45 @@ ros2 launch voron24_bringup mock.launch.py pattern:=sweep
 ```
 ### 3. Unity 연결
 
-1. Unity Hub에서 `unity/Voron24Twin` 프로젝트를 연다
-2. Play 버튼 클릭 — 별도 설정 없이 ROS-TCP-Endpoint(:10000)에 자동 연결
+1. Unity Hub `unity/Voron24Twin` 프로젝트
+2. Play 버튼 — 별도 설정 없이 ROS-TCP-Endpoint(:10000)에 자동 연결
 3. Console에 아래 로그가 나오면 정상:
 
 ```
 [JointState] bound 3/3 joints under 'voron24'
 [JointState] subscribed to /joint_states
 ```
-
-RViz와 Unity에서 동일한 동작을 보이는지 대조 확인.
-
 ---
 
 ## 실행 방법
 
 ### 모드 1: 수동 키보드 조작 (`sim.launch.py`)
 
+터미널 1: 시뮬레이션 실행.
+
 ```bash
+cd ros2_ws
+source install/setup.bash
 ros2 launch voron24_bringup sim.launch.py source:=manual
+```
+
+터미널 2: 별도 터미널에서 키보드 입력 노드를 실행.
+
+```bash
+cd ros2_ws
+source install/setup.bash
+ros2 run voron24_gcode manual_publisher
 ```
 
 | 키 | 동작 |
 |---|---|
-| `←` `→` | X축 이동 |
-| `↑` `↓` | Y축 이동 |
-| `PageUp` `PageDown` | Z축 이동 |
-| `Home` | X/Y/Z 원점 복귀 |
+| `A` `D` | X축 −/+ 이동 |
+| `S` `W` | Y축 −/+ 이동 |
+| `Q` `E` | Z축 −/+ 이동 |
+| `Home` 또는 `H` | X/Y/Z 원점 복귀 및 압출 끄기 |
+| `Spacebar` | 압출 on/off 전환 |
+| `Ctrl+C` | 수동 입력 종료 및 압출 끄기 |
+
 
 ### 모드 2: STL Input (`sim.launch.py source:=stl`)
 
@@ -236,6 +255,8 @@ ros2 launch voron24_bringup sim.launch.py \
 
 ---
 ## 문서
+
+협업 중 업무 할당 및 계획, 규칙 문서.
 
 | 문서 | 내용 |
 |---|---|

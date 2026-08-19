@@ -179,7 +179,14 @@ def launch_setup(context, *args, **kwargs):
     # ------------------------------------------------------------------
     # 값 소스 — 배타 선택. /printer/target 발행자도 하나여야 함.
     if source == 'manual':
-        if executable_path('voron24_gcode', 'manual_publisher'):
+        if pattern == 'none':
+            # ros2 launch 자식 프로세스에는 stdin이 연결되지 않는다. 입력 없는
+            # manual_publisher를 중복 기동하지 않고, 사용자가 연 별도 터미널의 노드가
+            # 키보드 입력을 전담하게 한다.
+            notes.append(LogInfo(msg='[sim] 수동 키보드는 별도 터미널에서 '
+                                     '`ros2 run voron24_gcode manual_publisher` 실행. '
+                                     '조작: A/D=X, S/W=Y, Q/E=Z, Home=원점, Space=압출'))
+        elif executable_path('voron24_gcode', 'manual_publisher'):
             actions.append(Node(
                 package='voron24_gcode', executable='manual_publisher',
                 name='manual_publisher', output='screen',
@@ -195,11 +202,6 @@ def launch_setup(context, *args, **kwargs):
                 name='mock_publisher', output='screen',
                 parameters=[{'pattern': pattern, 'rate': rate, 'period': period}],
                 remappings=[('/joint_states', target_topic)]))
-        if pattern == 'none':
-            notes.append(LogInfo(msg='[sim] pattern:=none — 자동 궤적 없음. 키보드 조작은 '
-                                     '별도 터미널에서 `ros2 run voron24_gcode '
-                                     'manual_publisher` (launch 로 띄운 노드에는 stdin 이 '
-                                     '연결되지 않음)'))
 
     elif source == 'gcode':
         actions.append(Node(

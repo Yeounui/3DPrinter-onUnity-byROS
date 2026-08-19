@@ -223,6 +223,7 @@ string    payload
 #   "pause" / "resume" / "stop"        args = []
 #   "load_gcode" payload = 파일 절대경로
 #   "set_speed"  args = [scale]
+#   "set_extrusion" args = [0.0 | 1.0]
 ```
  
 > `.msg` 변경 시 B가 Unity에서 C# 재생성 필요. **변경 = 계약 변경 = PR + 3인 승인.** W2 내 확정 권장.
